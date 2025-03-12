@@ -69,7 +69,7 @@ export async function analyzeComponents(
     const cssVarsBlock = cssVars ? `\n\n## CSS Variables (Design Tokens)\n${cssVars}` : "";
 
     const candidatesText = candidates.map((c, i) =>
-      `### Candidate ${i + 1} (matched: ${c.selector})\nTag: ${c.tag} | Classes: ${c.classes}\nParent: <${c.parentTag} class="${c.parentClasses}"> (${c.siblingCount} children)\n\nHTML:\n${c.outerHtml}\n\nCSS Rules:\n${c.matchingCss || "(no matching CSS found in <style> tags)"}`
+      `### Candidate ${i + 1} (source: ${c.selector}, score: ${c.score.toFixed(2)})\nTag: ${c.tag} | Classes: ${c.classes}\nMetrics: ${c.metrics.subtreeSize} descendants, ${c.metrics.contentLength} chars, ${c.metrics.interactiveCount} interactive elements, ${c.metrics.childDiversity} unique child tags, depth ${c.metrics.depth}\nParent: <${c.parentTag} class="${c.parentClasses}"> (${c.siblingCount} children)\n\nHTML:\n${c.outerHtml}\n\nCSS Rules:\n${c.matchingCss || "(no matching CSS found in <style> tags)"}`
     ).join("\n\n---\n\n");
 
     const { output } = await generateText({
