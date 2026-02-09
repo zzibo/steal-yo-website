@@ -13,7 +13,7 @@ async function searchPlaces(query: string) {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": GOOGLE_PLACES_KEY,
         "X-Goog-FieldMask":
-          "places.displayName,places.formattedAddress,places.rating,places.priceLevel,places.currentOpeningHours,places.websiteUri,places.googleMapsUri",
+          "places.displayName,places.formattedAddress,places.rating,places.priceLevel,places.currentOpeningHours,places.websiteUri,places.googleMapsUri,places.location",
       },
       body: JSON.stringify({ textQuery: query }),
     }
@@ -30,7 +30,7 @@ async function nearbySearch(lat: number, lng: number, type: string) {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": GOOGLE_PLACES_KEY,
         "X-Goog-FieldMask":
-          "places.displayName,places.formattedAddress,places.rating,places.priceLevel,places.googleMapsUri",
+          "places.displayName,places.formattedAddress,places.rating,places.priceLevel,places.googleMapsUri,places.location",
       },
       body: JSON.stringify({
         includedTypes: [type],
@@ -47,12 +47,22 @@ async function nearbySearch(lat: number, lng: number, type: string) {
   return res.json();
 }
 
+// Extract text content from v6 message format (parts-based)
+function getMessageText(message: { parts?: Array<{ type: string; text?: string }>; content?: string }): string {
+  if (message.parts) {
+    return message.parts
+      .filter((p) => p.type === "text" && p.text)
+      .map((p) => p.text)
+      .join("");
+  }
+  return typeof message.content === "string" ? message.content : "";
+}
+
 export async function POST(req: Request) {
   const { messages } = await req.json();
 
-  // The user message contains the social media URL.
-  // Step 1: scrape it first via our scrape endpoint.
-  const userMessage = messages[messages.length - 1]?.content ?? "";
+  const lastMessage = messages[messages.length - 1];
+  const userMessage = getMessageText(lastMessage);
   const urlMatch = userMessage.match(/https?:\/\/[^\s]+/);
 
   let venueContext = "";
@@ -83,15 +93,19 @@ Your plan should include 3 stops:
 2. **Main event** — the venue/activity from the post
 3. **Post-activity** — something after (dessert, a bar, a scenic spot)
 
-For each stop, include:
-- Suggested time (e.g. "6:30 PM")
-- Venue name
-- Why it fits the date
-- Address
-- Price range if known
+For each stop, format it like this:
 
-Use the tools to look up real venues near the main spot. Keep the vibe consistent across all stops.
-Be specific with real SF places. Keep the tone casual and fun — this is for a real couple, not a travel blog.`,
+### 🕐 6:30 PM — Venue Name
+**Why:** One sentence on why this fits the date vibe.
+**Address:** Full address ([Google Maps](maps_url))
+**Price:** $$ | **Rating:** 4.5/5
+
+Use the lookupVenue tool first to find the main venue and get its coordinates.
+Then use findNearby with those coordinates to discover pre and post activities.
+The location field in lookupVenue results has latitude and longitude you can pass to findNearby.
+
+Keep the vibe consistent across all stops. Be specific with real SF places.
+Keep the tone casual and fun — this is for a real couple, not a travel blog.`,
     messages: [
       {
         role: "user",
@@ -101,7 +115,7 @@ Be specific with real SF places. Keep the tone casual and fun — this is for a 
     tools: {
       lookupVenue: tool({
         description:
-          "Search for a specific venue by name and location to get details like address, rating, hours, price level",
+          "Search for a specific venue by name and location. Returns address, rating, hours, price level, coordinates (location.latitude/longitude), and Google Maps URL.",
         inputSchema: z.object({
           query: z
             .string()
@@ -113,14 +127,14 @@ Be specific with real SF places. Keep the tone casual and fun — this is for a 
       }),
       findNearby: tool({
         description:
-          "Find nearby places of a certain type (bar, cafe, park, etc.) within walking distance of a location",
+          "Find nearby places of a certain type within walking distance. Use coordinates from lookupVenue results.",
         inputSchema: z.object({
-          lat: z.number().describe("Latitude of the center point"),
-          lng: z.number().describe("Longitude of the center point"),
+          lat: z.number().describe("Latitude from a lookupVenue result's location.latitude"),
+          lng: z.number().describe("Longitude from a lookupVenue result's location.longitude"),
           type: z
             .string()
             .describe(
-              'Place type, e.g. "bar", "cafe", "park", "ice_cream_shop"'
+              'Google Places type, e.g. "bar", "cafe", "park", "ice_cream_shop", "dessert_shop"'
             ),
         }),
         execute: async ({ lat, lng, type }) => nearbySearch(lat, lng, type),

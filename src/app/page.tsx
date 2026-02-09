@@ -5,12 +5,13 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { LinkInput } from "@/components/LinkInput";
 import { Timeline } from "@/components/Timeline";
+import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 
 const transport = new DefaultChatTransport({ api: "/api/plan" });
 
 export default function Home() {
   const [input, setInput] = useState("");
-  const { messages, sendMessage, status } = useChat({ transport });
+  const { messages, sendMessage, status, error } = useChat({ transport });
 
   const isLoading = status === "streaming" || status === "submitted";
   const latestAssistant = messages.findLast((m) => m.role === "assistant");
@@ -40,14 +41,19 @@ export default function Home() {
           isLoading={isLoading}
         />
 
-        {isLoading && !latestAssistant && (
-          <div className="text-center text-neutral-500 animate-pulse">
-            Extracting post and planning your date...
+        {error && (
+          <div className="rounded-xl bg-red-950/50 border border-red-900 p-4 text-red-300 text-sm">
+            Something went wrong. Check your API keys or try a different link.
           </div>
         )}
 
+        {isLoading && !latestAssistant && <LoadingSkeleton />}
+
         {latestAssistant && (
-          <Timeline parts={latestAssistant.parts} />
+          <Timeline
+            parts={latestAssistant.parts}
+            isStreaming={status === "streaming"}
+          />
         )}
       </div>
     </main>
