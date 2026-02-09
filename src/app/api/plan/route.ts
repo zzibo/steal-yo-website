@@ -1,6 +1,7 @@
 import { streamText, tool, stepCountIs } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
+import { validateUrl, scrapeAndExtract } from "@/lib/scraper";
 
 const GOOGLE_PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY!;
 
@@ -67,19 +68,17 @@ export async function POST(req: Request) {
 
   let venueContext = "";
   if (urlMatch) {
-    try {
-      const origin = new URL(req.url).origin;
-      const scrapeRes = await fetch(`${origin}/api/scrape`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: urlMatch[0] }),
-      });
-      const scraped = await scrapeRes.json();
-      if (!scraped.error) {
+    const rawUrl = urlMatch[0];
+    const validation = validateUrl(rawUrl);
+
+    if (validation.valid) {
+      try {
+        const scraped = await scrapeAndExtract(rawUrl);
         venueContext = `\n\nExtracted from the social media post:\n${JSON.stringify(scraped, null, 2)}`;
+      } catch (err) {
+        // If scraping fails, the agent will work with just the URL
+        console.error("Scrape failed in plan route:", err);
       }
-    } catch {
-      // If scraping fails, the agent will work with just the URL
     }
   }
 
