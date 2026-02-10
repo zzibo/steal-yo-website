@@ -1,15 +1,23 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
   subsets: ["latin"],
   display: "swap",
+  variable: "--font-inter",
+});
+
+const playfair = Playfair_Display({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-playfair",
+  weight: ["400", "600", "700"],
 });
 
 export const metadata: Metadata = {
-  title: "Date Planner",
-  description: "Paste a social media link, get a date plan",
+  title: "DateDrop",
+  description: "Paste a link, get a shareable date card",
 };
 
 export default function RootLayout({
@@ -18,8 +26,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.className}>
-      <body className="bg-neutral-950 text-neutral-100 antialiased">
+    <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
+      <body className="font-sans bg-neutral-950 text-neutral-100 antialiased">
         {children}
       </body>
     </html>
