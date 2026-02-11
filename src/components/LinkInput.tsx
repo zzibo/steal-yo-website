@@ -108,7 +108,7 @@ export function LinkInput({ value, onChange, onSubmit, isLoading }: LinkInputPro
                      hover:bg-neutral-200 disabled:opacity-40 disabled:cursor-not-allowed
                      transition-colors shrink-0"
         >
-          {isLoading ? "Planning..." : "Plan"}
+          {isLoading ? "Creating..." : "Drop"}
         </button>
       </div>
       {hasText && !isValid && (
