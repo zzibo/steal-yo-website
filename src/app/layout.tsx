@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Crawl Agent",
-  description: "Crawl any website and get an artistic catalog of its components, design, and content",
+  title: "steal yo website",
+  description: "Steal any website's DNA — components, design tokens, layout, and content",
 };
 
 export default function RootLayout({
