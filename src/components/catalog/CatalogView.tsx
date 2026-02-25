@@ -14,7 +14,7 @@ export function CatalogView() {
     <div className="min-h-screen px-6 py-8">
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Catalog</h1>
+          <h1 className="text-2xl font-bold">steal yo website</h1>
           <p className="text-sm text-[var(--muted)]">
             {url} &mdash; {results.length} page(s) analyzed
           </p>

@@ -21,10 +21,10 @@ export default function Home() {
         className="w-full max-w-xl text-center"
       >
         <h1 className="mb-2 text-5xl font-bold tracking-tight">
-          Crawl Agent
+          steal yo website
         </h1>
         <p className="mb-12 text-[var(--muted)]">
-          Paste any URL. Get an artistic catalog of its DNA.
+          Paste any URL. Steal its DNA.
         </p>
 
         <div className="flex flex-col gap-4">
