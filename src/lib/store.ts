@@ -3,10 +3,20 @@
 import { create } from "zustand";
 import type { CrawlResult } from "./types";
 
+export const LOADING_STAGES = [
+  { label: "Crawling pages", detail: "Fetching HTML, screenshots, and assets" },
+  { label: "Detecting tech stack", detail: "Identifying frameworks and libraries" },
+  { label: "Analyzing layout", detail: "Mapping page sections and structure" },
+  { label: "Extracting components", detail: "Finding reusable UI patterns" },
+  { label: "Reading design tokens", detail: "Colors, typography, spacing, shadows" },
+  { label: "Scanning content", detail: "Text, images, links, and metadata" },
+] as const;
+
 interface CrawlState {
   url: string;
   depth: number;
-  status: "idle" | "crawling" | "analyzing" | "done" | "error";
+  status: "idle" | "loading" | "done" | "error";
+  loadingStage: number;
   error: string | null;
   results: CrawlResult[];
   activeTab: "components" | "design" | "layout" | "content" | "techstack";
@@ -14,6 +24,7 @@ interface CrawlState {
   setUrl: (url: string) => void;
   setDepth: (depth: number) => void;
   setActiveTab: (tab: CrawlState["activeTab"]) => void;
+  advanceStage: () => void;
   startCrawl: () => Promise<void>;
   reset: () => void;
 }
@@ -22,6 +33,7 @@ export const useCrawlStore = create<CrawlState>((set, get) => ({
   url: "",
   depth: 1,
   status: "idle",
+  loadingStage: 0,
   error: null,
   results: [],
   activeTab: "components",
@@ -29,10 +41,16 @@ export const useCrawlStore = create<CrawlState>((set, get) => ({
   setUrl: (url) => set({ url }),
   setDepth: (depth) => set({ depth }),
   setActiveTab: (tab) => set({ activeTab: tab }),
+  advanceStage: () => {
+    const { loadingStage } = get();
+    if (loadingStage < LOADING_STAGES.length - 1) {
+      set({ loadingStage: loadingStage + 1 });
+    }
+  },
 
   startCrawl: async () => {
     const { url, depth } = get();
-    set({ status: "crawling", error: null, results: [] });
+    set({ status: "loading", loadingStage: 0, error: null, results: [] });
 
     try {
       const res = await fetch("/api/analyze", {
@@ -46,7 +64,6 @@ export const useCrawlStore = create<CrawlState>((set, get) => ({
         throw new Error(data.error || "Crawl failed");
       }
 
-      set({ status: "analyzing" });
       const data = await res.json();
       set({ status: "done", results: data.results });
     } catch (err) {
@@ -62,6 +79,7 @@ export const useCrawlStore = create<CrawlState>((set, get) => ({
       url: "",
       depth: 1,
       status: "idle",
+      loadingStage: 0,
       error: null,
       results: [],
       activeTab: "components",
