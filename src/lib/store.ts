@@ -9,7 +9,7 @@ interface CrawlState {
   status: "idle" | "crawling" | "analyzing" | "done" | "error";
   error: string | null;
   results: CrawlResult[];
-  activeTab: "components" | "design" | "layout" | "content";
+  activeTab: "components" | "design" | "layout" | "content" | "techstack";
 
   setUrl: (url: string) => void;
   setDepth: (depth: number) => void;
