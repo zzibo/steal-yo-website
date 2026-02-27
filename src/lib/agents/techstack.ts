@@ -1,6 +1,10 @@
-import { generateText } from "ai";
+import { generateText, Output, stepCountIs } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import type { TechStackDetection, ScrapedPage } from "../types";
+import type { PageToolkit } from "./page-tools";
+import { techStackTools } from "./page-tools";
+import { TechStackSchema } from "./schemas";
+import { withRetry } from "./utils";
 
 const HEURISTIC_PATTERNS = {
   frameworks: [
@@ -71,9 +75,11 @@ function runHeuristics(html: string): Partial<TechStackDetection> {
   return result;
 }
 
-const SYSTEM_PROMPT = `You are a tech stack detection agent. Given a webpage's HTML and preliminary heuristic findings, identify the frontend technologies used.
+const SYSTEM_PROMPT = `You are a tech stack detection agent. Analyze a webpage to identify its frontend technologies.
 
-Analyze for:
+You have tools to inspect the page's script tags, meta tags, link tags, and framework-specific data objects. Use them to find evidence.
+
+Detect:
 1. Frontend framework (React, Vue, Angular, Svelte, etc.) and meta-frameworks (Next.js, Nuxt, SvelteKit, Astro)
 2. CSS approach (Tailwind, Bootstrap, styled-components, CSS Modules, Emotion, etc.)
 3. Component library (MUI, shadcn/ui, Chakra UI, Ant Design, Radix UI, Headless UI, etc.)
@@ -81,32 +87,33 @@ Analyze for:
 5. Meta-framework features (SSR, SSG, ISR indicators)
 6. Other libraries (Framer Motion, React Hook Form, Zod, GSAP, etc.)
 
-Return ONLY valid JSON matching this schema:
-{
-  "framework": { "name": "string", "version": "string or null", "confidence": "high|medium|low", "evidence": ["string"] } | null,
-  "cssFramework": { "name": "string", "version": "string or null", "confidence": "high|medium|low", "evidence": ["string"] } | null,
-  "componentLibrary": { "name": "string", "version": "string or null", "confidence": "high|medium|low", "evidence": ["string"] } | null,
-  "buildTool": { "name": "string", "confidence": "high|medium|low", "evidence": ["string"] } | null,
-  "metaFramework": { "features": ["string"], "confidence": "high|medium|low", "evidence": ["string"] } | null,
-  "otherLibraries": [{ "name": "string", "category": "animation|forms|state|styling|utility|other", "evidence": ["string"] }]
-}
+Provide concrete evidence. If unsure, use lower confidence. If a field has no findings, return null.`;
 
-Provide concrete evidence from the HTML. If unsure, use lower confidence. If a field has no findings, return null for that field.`;
-
-export async function analyzeTechStack(page: ScrapedPage): Promise<TechStackDetection> {
+export async function analyzeTechStack(
+  page: ScrapedPage,
+  toolkit: PageToolkit,
+  overview: string,
+): Promise<TechStackDetection> {
   // Phase 1: Fast heuristics
   const heuristic = runHeuristics(page.rawHtml);
 
-  // Phase 2: AI fills gaps and confirms
+  // Phase 2: AI with tools fills gaps and confirms
   try {
-    const { text } = await generateText({
-      model: anthropic("claude-sonnet-4-5-20250929"),
-      system: SYSTEM_PROMPT,
-      prompt: `Detect technologies on this page:\n\nURL: ${page.url}\n\nHeuristic findings:\n${JSON.stringify(heuristic, null, 2)}\n\nHTML (first 25KB):\n${page.rawHtml.slice(0, 25000)}`,
+    const result = await withRetry(async () => {
+      const { output } = await generateText({
+        model: anthropic("claude-sonnet-4-5-20250929"),
+        system: SYSTEM_PROMPT,
+        tools: techStackTools(toolkit),
+        output: Output.object({ schema: TechStackSchema }),
+        stopWhen: stepCountIs(4),
+        prompt: `Detect technologies on this page. Use the available tools to inspect scripts, meta tags, link tags, and framework data.\n\nHeuristic findings:\n${JSON.stringify(heuristic, null, 2)}\n\n${overview}`,
+      });
+
+      if (!output) throw new Error("No output generated");
+      return output;
     });
 
-    const clean = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "");
-    const ai: TechStackDetection = JSON.parse(clean);
+    const ai = result as TechStackDetection;
 
     // Merge: heuristic high-confidence wins, AI fills gaps
     return {

@@ -3,18 +3,30 @@ import { analyzeComponents } from "./components";
 import { analyzeDesign } from "./design";
 import { analyzeContent } from "./content";
 import { analyzeTechStack } from "./techstack";
+import { precomputePageData } from "./page-tools";
+import { buildPageOverview } from "./utils";
 import type { ScrapedPage, CrawlResult } from "../types";
 
 export async function analyzePage(page: ScrapedPage): Promise<CrawlResult> {
-  // Tech stack runs first so we can pass it to component agent
-  const techStack = await analyzeTechStack(page);
+  // Pre-compute page data once (<100ms) — tools read from this
+  const toolkit = precomputePageData(page);
+  const overview = buildPageOverview(page, toolkit);
 
-  // Other 4 agents run in parallel, components gets tech stack context
+  // Tech stack runs first so we can pass context to other agents
+  const techStack = await analyzeTechStack(page, toolkit, overview);
+
+  const techContext = {
+    framework: techStack.framework?.name,
+    css: techStack.cssFramework?.name,
+    componentLibrary: techStack.componentLibrary?.name,
+  };
+
+  // Other 4 agents run in parallel, ALL get tech stack context
   const [layoutResult, componentsResult, designResult, contentResult] = await Promise.allSettled([
-    analyzeLayout(page),
-    analyzeComponents(page, techStack),
-    analyzeDesign(page),
-    analyzeContent(page),
+    analyzeLayout(page, toolkit, overview, techContext),
+    analyzeComponents(page, toolkit, overview, techStack),
+    analyzeDesign(page, toolkit, overview, techContext),
+    analyzeContent(page, toolkit, overview),
   ]);
 
   return {
