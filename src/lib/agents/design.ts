@@ -30,5 +30,6 @@ export async function analyzeDesign(page: ScrapedPage): Promise<DesignAnalysis> 
     prompt: `Extract the design system from this page:\n\nURL: ${page.url}${brandingContext}\n\nHTML:\n${page.rawHtml.slice(0, 20000)}`,
   });
 
-  return JSON.parse(text);
+  const clean = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "");
+  return JSON.parse(clean);
 }

@@ -26,5 +26,6 @@ export async function analyzeLayout(page: ScrapedPage): Promise<LayoutAnalysis> 
     prompt: `Analyze the layout of this page:\n\nURL: ${page.url}\n\nHTML:\n${page.html.slice(0, 15000)}`,
   });
 
-  return JSON.parse(text);
+  const clean = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "");
+  return JSON.parse(clean);
 }

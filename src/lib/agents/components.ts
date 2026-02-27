@@ -29,5 +29,6 @@ export async function analyzeComponents(page: ScrapedPage): Promise<ComponentAna
     prompt: `Extract all reusable UI components from this page:\n\nURL: ${page.url}\n\nHTML:\n${page.rawHtml.slice(0, 30000)}`,
   });
 
-  return JSON.parse(text);
+  const clean = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "");
+  return JSON.parse(clean);
 }
