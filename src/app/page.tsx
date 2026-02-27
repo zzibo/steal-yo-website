@@ -1,16 +1,25 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useCrawlStore } from "@/lib/store";
-import { CatalogView } from "@/components/catalog/CatalogView";
 import { motion } from "framer-motion";
 
 export default function Home() {
+  const router = useRouter();
   const { url, depth, status, error, setUrl, setDepth, startCrawl, results } = useCrawlStore();
   const isLoading = status === "crawling" || status === "analyzing";
+  const hasNavigated = useRef(false);
 
-  if (status === "done" && results.length > 0) {
-    return <CatalogView />;
-  }
+  useEffect(() => {
+    if (status === "done" && results.length > 0 && !hasNavigated.current) {
+      hasNavigated.current = true;
+      router.push("/results");
+    }
+    if (status === "idle") {
+      hasNavigated.current = false;
+    }
+  }, [status, results, router]);
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-4">
