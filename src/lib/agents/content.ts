@@ -19,5 +19,6 @@ export async function analyzeContent(page: ScrapedPage): Promise<ContentAnalysis
     prompt: `Extract all content from this page:\n\nURL: ${page.url}\nTitle: ${page.metadata.title ?? "unknown"}\nDescription: ${page.metadata.description ?? "none"}\n\nMarkdown:\n${page.markdown.slice(0, 20000)}\n\nImages found: ${JSON.stringify(page.images.slice(0, 20))}\nLinks found: ${JSON.stringify(page.links.slice(0, 30))}`,
   });
 
-  return JSON.parse(text);
+  const clean = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "");
+  return JSON.parse(clean);
 }
