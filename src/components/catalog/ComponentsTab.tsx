@@ -2,20 +2,49 @@
 
 import { useCrawlStore } from "@/lib/store";
 import { ComponentCard } from "./ComponentCard";
+import { useState } from "react";
 
 export function ComponentsTab() {
   const { results } = useCrawlStore();
   const allComponents = results.flatMap((r) => r.components.components);
+  const [filter, setFilter] = useState("all");
+
+  const categories = ["all", ...new Set(allComponents.map((c) => c.category))];
+  const filtered = filter === "all" ? allComponents : allComponents.filter((c) => c.category === filter);
 
   if (allComponents.length === 0) {
-    return <p className="text-[var(--muted)]">No components extracted.</p>;
+    return (
+      <div className="py-20 text-center">
+        <p className="font-serif text-2xl text-[var(--ink)]">No components found</p>
+        <p className="font-hand mt-2 text-[var(--muted)]">Try crawling a different URL or increasing depth</p>
+      </div>
+    );
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-      {allComponents.map((component, i) => (
-        <ComponentCard key={`${component.name}-${i}`} component={component} index={i} />
-      ))}
+    <div>
+      <div className="mb-8 flex flex-wrap gap-2">
+        {categories.map((cat) => (
+          <button
+            key={cat}
+            onClick={() => setFilter(cat)}
+            className={`px-3 py-1.5 text-xs font-medium transition ${
+              filter === cat
+                ? "bg-[var(--accent)] text-white"
+                : "border border-[var(--border)] text-[var(--muted)] hover:border-[var(--accent)]"
+            }`}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
+      <div className="columns-1 gap-6 md:columns-2 lg:columns-3">
+        {filtered.map((component, i) => (
+          <div key={`${component.name}-${i}`} className="mb-6 break-inside-avoid">
+            <ComponentCard component={component} index={i} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
