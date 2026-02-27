@@ -1,32 +1,21 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { DM_Sans, IBM_Plex_Mono, Instrument_Serif, Caveat } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const dmSans = DM_Sans({ variable: "--font-sans", subsets: ["latin"] });
+const ibmPlexMono = IBM_Plex_Mono({ variable: "--font-mono", weight: ["400", "500"], subsets: ["latin"] });
+const instrumentSerif = Instrument_Serif({ variable: "--font-serif", weight: "400", subsets: ["latin"] });
+const caveat = Caveat({ variable: "--font-hand", subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "steal yo website",
-  description: "Steal any website's DNA — components, design tokens, layout, and content",
+  description: "Analyze any website's design DNA — components, design tokens, layout, tech stack",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} min-h-screen antialiased`}
-      >
+      <body className={`${dmSans.variable} ${ibmPlexMono.variable} ${instrumentSerif.variable} ${caveat.variable} min-h-screen antialiased`}>
         {children}
       </body>
     </html>
