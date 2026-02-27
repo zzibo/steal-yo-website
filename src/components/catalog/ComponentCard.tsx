@@ -1,12 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { ExtractedComponent } from "@/lib/types";
+import type { ExtractedComponent, TechStackDetection } from "@/lib/types";
 
-export function ComponentCard({ component, index }: { component: ExtractedComponent; index: number }) {
+export function ComponentCard({ component, index, techStack }: {
+  component: ExtractedComponent;
+  index: number;
+  techStack?: TechStackDetection;
+}) {
   const [showCode, setShowCode] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [iframeHeight, setIframeHeight] = useState(120);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const rotation = ((index * 7) % 5) - 2;
 
   const copy = (text: string, label: string) => {
@@ -14,6 +20,48 @@ export function ComponentCard({ component, index }: { component: ExtractedCompon
     setCopied(label);
     setTimeout(() => setCopied(null), 1500);
   };
+
+  const handleIframeLoad = useCallback(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    try {
+      const doc = iframe.contentDocument;
+      if (doc?.body) {
+        const height = doc.body.scrollHeight;
+        setIframeHeight(Math.min(Math.max(height, 60), 400));
+      }
+    } catch {
+      // sandbox may block access
+    }
+  }, []);
+
+  const cssFramework = techStack?.cssFramework?.name?.toLowerCase() ?? "";
+  const cdnLinks: string[] = [];
+  if (cssFramework.includes("bootstrap")) {
+    cdnLinks.push(`<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5/dist/css/bootstrap.min.css">`);
+  }
+
+  const srcDoc = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <script src="https://cdn.tailwindcss.com"></script>
+  ${cdnLinks.join("\n  ")}
+  <style>
+    body {
+      margin: 0;
+      padding: 16px;
+      font-family: system-ui, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 60px;
+    }
+    ${component.css}
+  </style>
+</head>
+<body>${component.html}</body>
+</html>`;
 
   return (
     <motion.div
@@ -34,10 +82,13 @@ export function ComponentCard({ component, index }: { component: ExtractedCompon
       {/* Preview */}
       <div className="border-b border-dashed border-[var(--border)] bg-white p-4">
         <iframe
-          srcDoc={`<!DOCTYPE html><html><head><style>body{margin:0;padding:16px;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:60px;}${component.css}</style></head><body>${component.html}</body></html>`}
-          className="h-24 w-full border-0"
-          sandbox="allow-same-origin"
+          ref={iframeRef}
+          srcDoc={srcDoc}
+          className="w-full border-0"
+          style={{ height: `${iframeHeight}px` }}
+          sandbox="allow-same-origin allow-scripts"
           title={component.name}
+          onLoad={handleIframeLoad}
         />
       </div>
 

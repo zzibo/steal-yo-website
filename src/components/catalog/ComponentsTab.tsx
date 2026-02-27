@@ -6,6 +6,7 @@ import { useState } from "react";
 
 export function ComponentsTab() {
   const { results } = useCrawlStore();
+  const techStack = results[0]?.techStack;
   const allComponents = results.flatMap((r) => r.components.components);
   const [filter, setFilter] = useState("all");
 
@@ -41,7 +42,7 @@ export function ComponentsTab() {
       <div className="columns-1 gap-6 md:columns-2 lg:columns-3">
         {filtered.map((component, i) => (
           <div key={`${component.name}-${i}`} className="mb-6 break-inside-avoid">
-            <ComponentCard component={component} index={i} />
+            <ComponentCard component={component} index={i} techStack={techStack} />
           </div>
         ))}
       </div>
