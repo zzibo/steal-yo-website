@@ -8,6 +8,7 @@ const tabs = [
   { id: "design" as const, label: "Design" },
   { id: "layout" as const, label: "Layout" },
   { id: "content" as const, label: "Content" },
+  { id: "techstack" as const, label: "Tech Stack" },
 ];
 
 export function TabBar() {

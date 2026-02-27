@@ -6,6 +6,8 @@ import { ComponentsTab } from "./ComponentsTab";
 import { DesignTab } from "./DesignTab";
 import { LayoutTab } from "./LayoutTab";
 import { ContentTab } from "./ContentTab";
+import { TechStackTab } from "./TechStackTab";
+import { exportStealKit } from "@/lib/export";
 
 export function CatalogView() {
   const { results, activeTab, reset, url } = useCrawlStore();
@@ -19,12 +21,20 @@ export function CatalogView() {
             {url} &mdash; {results.length} page(s) analyzed
           </p>
         </div>
-        <button
-          onClick={reset}
-          className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm transition hover:bg-[var(--surface)]"
-        >
-          New Crawl
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => exportStealKit(results)}
+            className="rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)]"
+          >
+            Export Steal Kit
+          </button>
+          <button
+            onClick={reset}
+            className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm transition hover:bg-[var(--surface)]"
+          >
+            New Crawl
+          </button>
+        </div>
       </div>
 
       {results[0]?.screenshot && (
@@ -41,6 +51,7 @@ export function CatalogView() {
       {activeTab === "design" && <DesignTab />}
       {activeTab === "layout" && <LayoutTab />}
       {activeTab === "content" && <ContentTab />}
+      {activeTab === "techstack" && <TechStackTab />}
     </div>
   );
 }

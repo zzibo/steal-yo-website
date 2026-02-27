@@ -6,12 +6,12 @@ import type { ExtractedComponent } from "@/lib/types";
 
 export function ComponentCard({ component, index }: { component: ExtractedComponent; index: number }) {
   const [showCode, setShowCode] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
 
-  const copyHtml = () => {
-    navigator.clipboard.writeText(component.html);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const copy = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(label);
+    setTimeout(() => setCopied(null), 1500);
   };
 
   return (
@@ -49,6 +49,20 @@ export function ComponentCard({ component, index }: { component: ExtractedCompon
           </div>
         )}
 
+        {component.attribution?.library && (
+          <div className="mb-3 rounded-lg border border-purple-500/20 bg-purple-500/5 px-3 py-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-purple-400">{component.attribution.library}</span>
+              <span className={`rounded-full px-2 py-0.5 text-xs ${
+                component.attribution.confidence === "high" ? "bg-green-500/10 text-green-400" :
+                component.attribution.confidence === "medium" ? "bg-yellow-500/10 text-yellow-400" :
+                "bg-red-500/10 text-red-400"
+              }`}>{component.attribution.confidence}</span>
+            </div>
+            <p className="mt-1 text-xs text-[var(--muted)]">{component.attribution.reasoning}</p>
+          </div>
+        )}
+
         <div className="flex gap-2">
           <button
             onClick={() => setShowCode(!showCode)}
@@ -57,10 +71,16 @@ export function ComponentCard({ component, index }: { component: ExtractedCompon
             {showCode ? "Hide Code" : "View Code"}
           </button>
           <button
-            onClick={copyHtml}
+            onClick={() => copy(component.html, "html")}
             className="rounded-lg bg-[var(--background)] px-3 py-1.5 text-xs text-[var(--muted)] transition hover:text-white"
           >
-            {copied ? "Copied!" : "Copy HTML"}
+            {copied === "html" ? "Copied!" : "Copy HTML"}
+          </button>
+          <button
+            onClick={() => copy(component.css, "css")}
+            className="rounded-lg bg-[var(--background)] px-3 py-1.5 text-xs text-[var(--muted)] transition hover:text-white"
+          >
+            {copied === "css" ? "Copied!" : "Copy CSS"}
           </button>
         </div>
 
