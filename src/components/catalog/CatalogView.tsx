@@ -9,9 +9,16 @@ import { ContentTab } from "./ContentTab";
 import { TechStackTab } from "./TechStackTab";
 import { exportStealKit } from "@/lib/export";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
 
 export function CatalogView() {
+  const router = useRouter();
   const { results, activeTab, reset, url } = useCrawlStore();
+
+  const handleNewCrawl = () => {
+    reset();
+    router.push("/");
+  };
 
   const tabContent: Record<string, React.ReactNode> = {
     components: <ComponentsTab />,
@@ -39,7 +46,7 @@ export function CatalogView() {
             Export Steal Kit
           </button>
           <button
-            onClick={reset}
+            onClick={handleNewCrawl}
             className="border border-[var(--border)] px-4 py-2 text-sm text-[var(--ink-light)] transition hover:bg-[var(--surface)]"
           >
             New Crawl
