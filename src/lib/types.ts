@@ -63,6 +63,7 @@ export interface ExtractedComponent {
   css: string;
   variants: string[];
   description: string;
+  attribution?: ComponentAttribution;
 }
 
 export interface ComponentAnalysis {
@@ -104,4 +105,55 @@ export interface CrawlResult {
   components: ComponentAnalysis;
   design: DesignAnalysis;
   content: ContentAnalysis;
+  techStack: TechStackDetection;
+}
+
+export interface TechStackDetection {
+  framework?: {
+    name: string;
+    version?: string;
+    confidence: "high" | "medium" | "low";
+    evidence: string[];
+  };
+  cssFramework?: {
+    name: string;
+    version?: string;
+    confidence: "high" | "medium" | "low";
+    evidence: string[];
+  };
+  componentLibrary?: {
+    name: string;
+    version?: string;
+    confidence: "high" | "medium" | "low";
+    evidence: string[];
+  };
+  buildTool?: {
+    name: string;
+    confidence: "high" | "medium" | "low";
+    evidence: string[];
+  };
+  metaFramework?: {
+    features: string[];
+    confidence: "high" | "medium" | "low";
+    evidence: string[];
+  };
+  otherLibraries: {
+    name: string;
+    category: "animation" | "forms" | "state" | "styling" | "utility" | "other";
+    evidence: string[];
+  }[];
+}
+
+export interface ComponentAttribution {
+  library: string | null;
+  confidence: "high" | "medium" | "low";
+  reasoning: string;
+}
+
+export interface StealKitExport {
+  designSystem: string;
+  techStack: string;
+  styleGuide: string;
+  components: { filename: string; content: string }[];
+  masterFile: string;
 }
