@@ -3,12 +3,13 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useCrawlStore } from "@/lib/store";
-import { motion } from "framer-motion";
+import { LoadingSequence } from "@/components/LoadingSequence";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function Home() {
   const router = useRouter();
   const { url, depth, status, error, setUrl, setDepth, startCrawl, results } = useCrawlStore();
-  const isLoading = status === "crawling" || status === "analyzing";
+  const isLoading = status === "loading";
   const hasNavigated = useRef(false);
 
   useEffect(() => {
@@ -36,53 +37,67 @@ export default function Home() {
           Paste any URL. Study its design DNA.
         </p>
 
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ type: "spring", damping: 25, stiffness: 200, delay: 0.3 }}
-          className="flex flex-col gap-4"
-        >
-          <input
-            type="url"
-            placeholder="https://example.com"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            disabled={isLoading}
-            className="w-full rounded-none border border-[var(--border)] bg-[var(--surface)] px-5 py-4 text-lg text-[var(--ink)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--accent)] disabled:opacity-50"
-          />
-
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="font-hand text-sm text-[var(--muted)]">Depth</span>
-              {[1, 2, 3].map((d) => (
-                <button
-                  key={d}
-                  onClick={() => setDepth(d)}
-                  disabled={isLoading}
-                  className={`h-9 w-9 text-sm font-medium transition ${
-                    depth === d
-                      ? "bg-[var(--accent)] text-white"
-                      : "border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:border-[var(--accent)]"
-                  }`}
-                >
-                  {d}
-                </button>
-              ))}
-            </div>
-
-            <button
-              onClick={startCrawl}
-              disabled={!url || isLoading}
-              className="bg-[var(--accent)] px-8 py-3 font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
+        <AnimatePresence mode="wait">
+          {isLoading ? (
+            <motion.div
+              key="loading"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
             >
-              {isLoading ? (status === "crawling" ? "Crawling..." : "Analyzing...") : "Crawl"}
-            </button>
-          </div>
+              <LoadingSequence />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="form"
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="flex flex-col gap-4"
+            >
+              <input
+                type="url"
+                placeholder="https://example.com"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                className="w-full rounded-none border border-[var(--border)] bg-[var(--surface)] px-5 py-4 text-lg text-[var(--ink)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
+              />
 
-          {error && (
-            <p className="text-sm text-[var(--accent)]">{error}</p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="font-hand text-sm text-[var(--muted)]">Depth</span>
+                  {[1, 2, 3].map((d) => (
+                    <button
+                      key={d}
+                      onClick={() => setDepth(d)}
+                      className={`h-9 w-9 text-sm font-medium transition ${
+                        depth === d
+                          ? "bg-[var(--accent)] text-white"
+                          : "border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:border-[var(--accent)]"
+                      }`}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={startCrawl}
+                  disabled={!url}
+                  className="bg-[var(--accent)] px-8 py-3 font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
+                >
+                  Crawl
+                </button>
+              </div>
+
+              {error && (
+                <p className="text-sm text-[var(--accent)]">{error}</p>
+              )}
+            </motion.div>
           )}
-        </motion.div>
+        </AnimatePresence>
 
         <p className="mt-8 text-xs text-[var(--muted)]">
           For inspiration and learning. Respect original creators&apos; work.
