@@ -12,6 +12,7 @@
     "@ai-sdk/anthropic": "^3.0.47",
     "@mendable/firecrawl-js": "^4.13.2",
     "ai": "^6.0.99",
+    "cheerio": "^1.2.0",
     "framer-motion": "^12.34.3",
     "jszip": "^3.10.1",
     "nanoid": "^5.1.6",
