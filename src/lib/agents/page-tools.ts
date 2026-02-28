@@ -21,6 +21,8 @@ export interface PageToolkit {
   landmarkSections: { tag: string; classes: string; text: string }[];
   spacingValues: { property: string; value: string; count: number }[];
   borderRadiusValues: { value: string; count: number }[];
+  extractedStyles: string;
+  externalStylesheets: string[];
   $: cheerio.CheerioAPI;
 }
 
@@ -43,6 +45,8 @@ export function precomputePageData(page: ScrapedPage): PageToolkit {
     landmarkSections: extractLandmarkSections($),
     spacingValues: extractSpacingValues(page.rawHtml),
     borderRadiusValues: extractBorderRadiusValues(page.rawHtml),
+    extractedStyles: extractAllInlineStyles($),
+    externalStylesheets: extractExternalStylesheets($),
     $,
   };
 }
@@ -301,6 +305,26 @@ function extractBorderRadiusValues(rawHtml: string) {
     .slice(0, 20);
 }
 
+function extractAllInlineStyles($: cheerio.CheerioAPI): string {
+  const styles: string[] = [];
+  $("style").each((_, el) => {
+    const css = $(el).html();
+    if (css) styles.push(css);
+  });
+  // Cap at 200KB to avoid bloating the response
+  const combined = styles.join("\n");
+  return combined.slice(0, 200_000);
+}
+
+function extractExternalStylesheets($: cheerio.CheerioAPI): string[] {
+  const urls: string[] = [];
+  $('link[rel="stylesheet"]').each((_, el) => {
+    const href = $(el).attr("href");
+    if (href) urls.push(href);
+  });
+  return urls;
+}
+
 // ── Tool factory functions ────────────────────────────────────────
 
 export function techStackTools(toolkit: PageToolkit) {
@@ -324,6 +348,39 @@ export function techStackTools(toolkit: PageToolkit) {
       description: "Get framework-specific data objects like __NEXT_DATA__ (Next.js), __NUXT__ (Nuxt), or similar embedded JSON. Returns null if none found.",
       inputSchema: z.object({}),
       execute: async () => toolkit.frameworkData,
+    }),
+    get_html_attributes: tool({
+      description: "Get attributes from <html> and <body> tags (ng-version, data-framework, data-reactroot, etc.)",
+      inputSchema: z.object({}),
+      execute: async () => ({
+        html: {
+          attributes: toolkit.$("html").attr() || {},
+          classes: toolkit.$("html").attr("class") || "",
+        },
+        body: {
+          attributes: toolkit.$("body").attr() || {},
+          classes: toolkit.$("body").attr("class") || "",
+        },
+      }),
+    }),
+    search_inline_scripts: tool({
+      description: "Search inline script content for specific patterns (framework initialization, library imports, config objects)",
+      inputSchema: z.object({
+        pattern: z.string().describe("Text pattern to search for, e.g. 'createApp', 'ReactDOM', 'angular.bootstrap'"),
+      }),
+      execute: async ({ pattern }) => {
+        const matches: { context: string }[] = [];
+        toolkit.$("script").each((_, el) => {
+          const content = toolkit.$(el).html() || "";
+          if (!toolkit.$(el).attr("src") && content.includes(pattern)) {
+            const index = content.indexOf(pattern);
+            matches.push({
+              context: content.slice(Math.max(0, index - 100), index + 200),
+            });
+          }
+        });
+        return matches.slice(0, 5);
+      },
     }),
   };
 }
@@ -365,6 +422,34 @@ export function layoutTools(toolkit: PageToolkit) {
           });
         } catch { /* invalid selector */ }
         return results;
+      },
+    }),
+    get_section_hierarchy: tool({
+      description: "Get the hierarchical structure of page sections showing parent-child nesting relationships",
+      inputSchema: z.object({}),
+      execute: async () => {
+        type SectionNode = { tag: string; classes: string; id?: string; children: SectionNode[] };
+        const structuralTags = new Set(["header", "main", "footer", "nav", "aside", "section", "article"]);
+        const buildTree = (selector: string): SectionNode[] => {
+          const nodes: SectionNode[] = [];
+          toolkit.$(selector).children().each((_, el) => {
+            const $el = toolkit.$(el);
+            const tag = $el.prop("tagName")?.toLowerCase() || "";
+            if (!structuralTags.has(tag)) return;
+            const id = $el.attr("id");
+            const classes = $el.attr("class")?.slice(0, 200) || "";
+            const childSelector = id ? `#${id}` : `${tag}.${(classes.split(" ")[0] || "")}`;
+            const node: SectionNode = {
+              tag,
+              classes,
+              id: id || undefined,
+              children: childSelector ? buildTree(childSelector) : [],
+            };
+            nodes.push(node);
+          });
+          return nodes;
+        };
+        return buildTree("body");
       },
     }),
   };
@@ -437,6 +522,28 @@ export function componentTools(toolkit: PageToolkit) {
         };
       },
     }),
+    check_external_stylesheets: tool({
+      description: "Check if external stylesheets are loaded and identify known library CSS files (MUI, Chakra, Bootstrap, etc.)",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const libraryPatterns: [string, RegExp][] = [
+          ["MUI", /mui|material/i],
+          ["Chakra UI", /chakra/i],
+          ["Bootstrap", /bootstrap/i],
+          ["Ant Design", /antd|ant-design/i],
+          ["Tailwind CSS", /tailwind/i],
+          ["Bulma", /bulma/i],
+          ["Foundation", /foundation/i],
+          ["Semantic UI", /semantic/i],
+        ];
+        return toolkit.linkTags
+          .filter((link) => link.rel === "stylesheet")
+          .map((link) => {
+            const library = libraryPatterns.find(([, re]) => re.test(link.href))?.[0] ?? null;
+            return { href: link.href, library };
+          });
+      },
+    }),
   };
 }
 
@@ -465,6 +572,66 @@ export function designTools(toolkit: PageToolkit) {
         borderRadius: toolkit.borderRadiusValues,
       }),
     }),
+    analyze_color_usage: tool({
+      description: "Analyze which colors are used where (backgrounds, text, borders) with usage counts",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const usage = new Map<string, { bg: number; text: number; border: number }>();
+        toolkit.$("style").each((_, styleEl) => {
+          const css = toolkit.$(styleEl).html() || "";
+          for (const match of css.matchAll(/background(?:-color)?\s*:\s*([#\w(),./ -]+)/gi)) {
+            const color = match[1].trim().toLowerCase();
+            const e = usage.get(color) || { bg: 0, text: 0, border: 0 };
+            e.bg++;
+            usage.set(color, e);
+          }
+          for (const match of css.matchAll(/(?:^|[{;\s])color\s*:\s*([#\w(),./ -]+)/gi)) {
+            const color = match[1].trim().toLowerCase();
+            const e = usage.get(color) || { bg: 0, text: 0, border: 0 };
+            e.text++;
+            usage.set(color, e);
+          }
+          for (const match of css.matchAll(/border(?:-color)?\s*:[^;]*?([#]\w{3,8}|rgba?\([^)]+\)|hsla?\([^)]+\))/gi)) {
+            const color = match[1].trim().toLowerCase();
+            const e = usage.get(color) || { bg: 0, text: 0, border: 0 };
+            e.border++;
+            usage.set(color, e);
+          }
+        });
+        return [...usage.entries()]
+          .map(([color, counts]) => ({ color, ...counts }))
+          .filter(({ bg, text, border }) => bg + text + border > 0)
+          .sort((a, b) => (b.bg + b.text + b.border) - (a.bg + a.text + a.border))
+          .slice(0, 50);
+      },
+    }),
+    analyze_typography_usage: tool({
+      description: "Get actual font sizes, weights, and line heights used on headings and body text elements",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const selectors = ["h1", "h2", "h3", "h4", "h5", "h6", "p", "a", "li"];
+        const results: { tag: string; fontSize: string; fontWeight: string; lineHeight: string; fontFamily: string; count: number }[] = [];
+        for (const sel of selectors) {
+          const count = toolkit.$(sel).length;
+          if (count === 0) continue;
+          let fontSize = "", fontWeight = "", lineHeight = "", fontFamily = "";
+          toolkit.$("style").each((_, styleEl) => {
+            const css = toolkit.$(styleEl).html() || "";
+            const re = new RegExp(`(?:^|[},\\s])${sel}\\s*\\{([^}]+)\\}`, "gi");
+            const match = re.exec(css);
+            if (match) {
+              const rules = match[1];
+              fontSize = rules.match(/font-size\s*:\s*([^;]+)/i)?.[1]?.trim() || fontSize;
+              fontWeight = rules.match(/font-weight\s*:\s*([^;]+)/i)?.[1]?.trim() || fontWeight;
+              lineHeight = rules.match(/line-height\s*:\s*([^;]+)/i)?.[1]?.trim() || lineHeight;
+              fontFamily = rules.match(/font-family\s*:\s*([^;]+)/i)?.[1]?.trim() || fontFamily;
+            }
+          });
+          results.push({ tag: sel, fontSize: fontSize || "inherit", fontWeight: fontWeight || "normal", lineHeight: lineHeight || "normal", fontFamily: fontFamily || "inherit", count });
+        }
+        return results;
+      },
+    }),
   };
 }
 
@@ -489,6 +656,40 @@ export function contentTools(toolkit: PageToolkit) {
       description: "Get all form inputs, textareas, selects, and submit buttons with their labels",
       inputSchema: z.object({}),
       execute: async () => toolkit.formFields,
+    }),
+    query_ctas: tool({
+      description: "Find all call-to-action buttons and prominent action links on the page",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const ctas: { text: string; href: string; tag: string; classes: string }[] = [];
+        toolkit.$("button, [role='button'], .btn, [class*='button'], a.cta, a[class*='cta']").each((_, el) => {
+          const $el = toolkit.$(el);
+          const text = $el.text().trim();
+          if (text && ctas.length < 20) {
+            ctas.push({
+              text,
+              href: $el.attr("href") || $el.closest("a").attr("href") || "",
+              tag: $el.prop("tagName")?.toLowerCase() || "",
+              classes: $el.attr("class")?.slice(0, 200) || "",
+            });
+          }
+        });
+        // Also find prominent action links
+        const actionWords = ["get started", "sign up", "try", "download", "buy", "subscribe", "learn more", "contact", "start free", "book a demo"];
+        toolkit.$("a").each((_, el) => {
+          const $el = toolkit.$(el);
+          const text = $el.text().trim().toLowerCase();
+          if (actionWords.some((w) => text.includes(w)) && ctas.length < 25) {
+            ctas.push({
+              text: $el.text().trim(),
+              href: $el.attr("href") || "",
+              tag: "a",
+              classes: $el.attr("class")?.slice(0, 200) || "",
+            });
+          }
+        });
+        return ctas;
+      },
     }),
   };
 }

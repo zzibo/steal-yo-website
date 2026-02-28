@@ -65,7 +65,19 @@ export function ContentTab() {
                 className="w-48 bg-white p-2 pb-8 shadow-md"
                 style={{ transform: `rotate(${(i * 3 % 5) - 2}deg)` }}
               >
-                <img src={img.src} alt={img.alt} className="aspect-video w-full object-cover" />
+                <img
+                  src={img.src}
+                  alt={img.alt}
+                  className="aspect-video w-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                    const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                    if (fallback) fallback.style.display = "flex";
+                  }}
+                />
+                <div className="hidden aspect-video w-full items-center justify-center bg-gray-100 text-xs text-gray-400">
+                  Image unavailable
+                </div>
                 <p className="font-hand mt-2 truncate text-xs text-[var(--muted)]">{img.alt || "No alt"}</p>
               </motion.div>
             ))}
