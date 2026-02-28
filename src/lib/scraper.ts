@@ -22,7 +22,14 @@ export async function scrapePage(url: string): Promise<ScrapedPage> {
     rawHtml: result.rawHtml ?? "",
     screenshot: result.screenshot,
     links: result.links ?? [],
-    images: result.images ?? [],
+    images: (result.images ?? []).map((imgSrc) => {
+      try {
+        new URL(imgSrc);
+        return imgSrc;
+      } catch {
+        try { return new URL(imgSrc, url).toString(); } catch { return imgSrc; }
+      }
+    }),
     branding: result.branding as ScrapedPage["branding"],
     metadata: {
       title: Array.isArray(result.metadata?.title) ? result.metadata.title[0] : result.metadata?.title,

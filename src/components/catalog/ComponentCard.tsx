@@ -4,10 +4,51 @@ import { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { ExtractedComponent, TechStackDetection } from "@/lib/types";
 
-export function ComponentCard({ component, index, techStack }: {
+// CDN links keyed by detected tech stack name (lowercase match)
+const CSS_CDNS: Record<string, string[]> = {
+  bootstrap: [
+    `<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css">`,
+    `<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">`,
+  ],
+  bulma: [
+    `<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">`,
+  ],
+  foundation: [
+    `<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/foundation-sites@6.9.0/dist/css/foundation.min.css">`,
+  ],
+  "semantic ui": [
+    `<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.5.0/semantic.min.css">`,
+  ],
+  "ant design": [
+    `<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/antd/5.27.4/reset.css">`,
+  ],
+};
+
+// Icon CDNs detected from HTML class patterns
+const ICON_PATTERNS: { pattern: RegExp; cdn: string }[] = [
+  { pattern: /\bfa[srldb]?\s+fa-/i, cdn: `<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">` },
+  { pattern: /\bmaterial-icons\b/i, cdn: `<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">` },
+  { pattern: /\bmaterial-symbols/i, cdn: `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined">` },
+  { pattern: /\bbi\s+bi-/i, cdn: `<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">` },
+];
+
+function buildGoogleFontsUrl(families: string[]): string | null {
+  if (!families.length) return null;
+  const params = families
+    .filter((f) => !["system-ui", "sans-serif", "serif", "monospace", "inherit"].includes(f.toLowerCase()))
+    .slice(0, 5)
+    .map((f) => `family=${encodeURIComponent(f)}:wght@100;200;300;400;500;600;700;800;900`)
+    .join("&");
+  return params ? `https://fonts.googleapis.com/css2?${params}&display=swap` : null;
+}
+
+export function ComponentCard({ component, index, techStack, extractedStyles, externalStylesheets, fontFamilies }: {
   component: ExtractedComponent;
   index: number;
   techStack?: TechStackDetection;
+  extractedStyles?: string;
+  externalStylesheets?: string[];
+  fontFamilies?: string[];
 }) {
   const [showCode, setShowCode] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
@@ -35,18 +76,58 @@ export function ComponentCard({ component, index, techStack }: {
     }
   }, []);
 
-  const cssFramework = techStack?.cssFramework?.name?.toLowerCase() ?? "";
+  // Build CDN links from detected tech stack
   const cdnLinks: string[] = [];
-  if (cssFramework.includes("bootstrap")) {
-    cdnLinks.push(`<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5/dist/css/bootstrap.min.css">`);
+  const seenCdns = new Set<string>();
+
+  const addCdn = (link: string) => {
+    if (!seenCdns.has(link)) {
+      seenCdns.add(link);
+      cdnLinks.push(link);
+    }
+  };
+
+  // CSS framework CDN
+  const cssName = techStack?.cssFramework?.name?.toLowerCase() ?? "";
+  for (const [key, links] of Object.entries(CSS_CDNS)) {
+    if (cssName.includes(key)) links.forEach(addCdn);
   }
+
+  // Component library CDN
+  const libName = techStack?.componentLibrary?.name?.toLowerCase() ?? "";
+  for (const [key, links] of Object.entries(CSS_CDNS)) {
+    if (libName.includes(key)) links.forEach(addCdn);
+  }
+
+  // Icon libraries detected from component HTML
+  for (const { pattern, cdn } of ICON_PATTERNS) {
+    if (pattern.test(component.html)) addCdn(cdn);
+  }
+
+  // External stylesheets from the original page (covers CDN libraries already loaded)
+  if (externalStylesheets) {
+    for (const href of externalStylesheets.slice(0, 10)) {
+      // Only include absolute URLs (skip relative paths that won't resolve in iframe)
+      if (href.startsWith("http")) {
+        addCdn(`<link rel="stylesheet" href="${href}">`);
+      }
+    }
+  }
+
+  // Google Fonts
+  const fontsUrl = buildGoogleFontsUrl(fontFamilies ?? []);
+
+  // Use extracted page styles for CSS-in-JS coverage (MUI, Chakra, Ant Design v5)
+  // Cap at 100KB to keep iframe reasonable
+  const pageStyles = extractedStyles?.slice(0, 100_000) ?? "";
 
   const srcDoc = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   ${cdnLinks.join("\n  ")}
+  ${fontsUrl ? `<link rel="stylesheet" href="${fontsUrl}">` : ""}
   <style>
     body {
       margin: 0;
@@ -57,6 +138,9 @@ export function ComponentCard({ component, index, techStack }: {
       justify-content: center;
       min-height: 60px;
     }
+    /* Extracted page styles (CSS-in-JS, CSS variables, etc.) */
+    ${pageStyles}
+    /* Component-specific CSS */
     ${component.css}
   </style>
 </head>

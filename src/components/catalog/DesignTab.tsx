@@ -39,6 +39,9 @@ export function DesignTab() {
                 <p className="font-mono text-[10px] text-[var(--muted)]">
                   {copiedHex === color.hex ? "Copied!" : color.hex}
                 </p>
+                {color.usage && (
+                  <p className="mt-0.5 text-[9px] leading-tight text-[var(--muted)]">{color.usage}</p>
+                )}
               </div>
             </motion.div>
           ))}

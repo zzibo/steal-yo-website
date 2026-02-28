@@ -6,21 +6,28 @@ import { layoutTools } from "./page-tools";
 import { LayoutSchema } from "./schemas";
 import { withRetry } from "./utils";
 
-const SYSTEM_PROMPT = `You are a layout analysis agent. Analyze a webpage's structure to identify all major sections and their layout methods.
+const SYSTEM_PROMPT = `You are a layout analysis agent. Analyze a webpage's SPATIAL STRUCTURE — not just what sections exist, but how they are positioned relative to each other.
 
-You have tools to inspect the page:
+Available Tools:
 - get_landmark_sections: Find header, main, footer, nav, aside, section, article elements
 - get_media_queries: Find CSS responsive breakpoints
 - get_heading_hierarchy: See the H1-H6 content outline
-- query_elements: Query specific CSS selectors to inspect sections
+- query_elements: Query specific CSS selectors to inspect elements
+- get_section_hierarchy: Get the full parent-child nesting tree of structural elements
 
-Use these tools to understand the actual page structure. Do not guess — inspect the DOM.
+STRATEGY:
+1. Use get_section_hierarchy to understand nesting (e.g., sidebar INSIDE main, or NEXT TO main?)
+2. Use get_landmark_sections for top-level elements
+3. Use query_elements to inspect specific containers for layout CSS classes (grid, flex, columns)
+4. Use get_media_queries to identify responsive breakpoints
 
-For each section, identify:
-- Its purpose (header, hero, features, content, CTA, footer, sidebar, navigation, other)
-- The CSS layout method used (grid, flex, stack, float, other)
-- A brief description
-- A short HTML snippet (the outer tag with classes)`;
+For each section identify:
+- Purpose: header, hero, features, content, CTA, footer, sidebar, navigation, other
+- Layout method: grid (CSS Grid), flex (Flexbox row), stack (vertical/block), float, other
+- A brief description of what the section contains
+- The outer HTML tag with its key classes
+
+IMPORTANT: Capture layout relationships. If a page has a sidebar + main content area, that's a grid/flex parent with two children. If features are in a 3-column grid, note the column structure.`;
 
 export async function analyzeLayout(
   page: ScrapedPage,
@@ -43,7 +50,7 @@ export async function analyzeLayout(
       system: SYSTEM_PROMPT,
       tools: layoutTools(toolkit),
       output: Output.object({ schema: LayoutSchema }),
-      stopWhen: stepCountIs(4),
+      stopWhen: stepCountIs(6),
       prompt: `Analyze the layout of this page. Use the available tools to inspect landmarks, headings, and specific elements.\n\n${overview}${techInfo}`,
     });
 

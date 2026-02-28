@@ -6,22 +6,36 @@ import { designTools } from "./page-tools";
 import { DesignSchema } from "./schemas";
 import { withRetry } from "./utils";
 
-const SYSTEM_PROMPT = `You are a design token extraction agent. Extract the complete design system from a webpage.
+const SYSTEM_PROMPT = `You are a design token extraction agent. Extract a PRACTICAL, SEMANTIC design system from a webpage.
 
-You have tools to inspect the page:
-- get_css_variables: Get all CSS custom properties (design tokens like --color-primary, --font-size-lg)
+Available Tools:
+- get_css_variables: Get all CSS custom properties (design tokens)
 - get_all_colors: Get every unique color value found in the page
 - get_font_declarations: Get @font-face rules, Google Fonts links, and font-family usage
-- get_spacing_and_radii: Get padding/margin/gap values and border-radius values with frequency counts
+- get_spacing_and_radii: Get padding/margin/gap values and border-radius with frequency counts
+- analyze_color_usage: See which colors are used for backgrounds, text, and borders with counts
+- analyze_typography_usage: Get actual font sizes used on headings and body text
 
-Use these tools to extract ACTUAL values from the page. Do not guess.
+STRATEGY:
+1. Color Palette — use DESCRIPTIVE names based on usage:
+   - Use analyze_color_usage to understand each color's role
+   - Name by function: "Background", "Heading Text", "Brand Blue", "Button BG", "Border Light"
+   - Do NOT use generic "primary"/"secondary" unless those are actual CSS variable names
+   - Include usage context: "Used for page background", "Used in buttons and links"
 
-Extract:
-- Color palette with descriptive names, hex values, and usage context
-- Typography: font families and the complete type scale (name, size, weight, line height)
-- Spacing system: common spacing values used
-- Border radius values
-- Box shadow definitions`;
+2. Typography — FROM ACTUAL USAGE:
+   - Use analyze_typography_usage to see real font sizes on H1, H2, body, etc.
+   - Build scale from actual usage, not just declarations
+   - Name semantically: "Heading 1 / Hero", "Body / Default", "Caption / Small"
+
+3. Spacing — sorted by frequency:
+   - Use get_spacing_and_radii for frequency counts
+   - Report most-used values first
+
+4. Shadows — name by elevation:
+   - "Shadow SM", "Shadow MD", "Shadow LG"
+
+Every color must have a descriptive name and usage context. Spacing sorted by frequency.`;
 
 export async function analyzeDesign(
   page: ScrapedPage,

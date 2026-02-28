@@ -106,6 +106,8 @@ export interface CrawlResult {
   design: DesignAnalysis;
   content: ContentAnalysis;
   techStack: TechStackDetection;
+  extractedStyles?: string;
+  externalStylesheets?: string[];
 }
 
 export interface TechStackDetection {
