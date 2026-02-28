@@ -140,6 +140,10 @@ export function generateMasterMd(results: CrawlResult[]): string {
 }
 
 export async function exportStealKit(results: CrawlResult[]): Promise<void> {
+  if (!results || results.length === 0) {
+    throw new Error("No results to export. Please crawl a website first.");
+  }
+
   const kit: StealKitExport = {
     designSystem: generateDesignSystemMd(results),
     techStack: generateTechStackMd(results),

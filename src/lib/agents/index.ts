@@ -37,5 +37,7 @@ export async function analyzePage(page: ScrapedPage): Promise<CrawlResult> {
     design: designResult.status === "fulfilled" ? designResult.value : { colors: [], typography: { fontFamilies: [], scale: [] }, spacing: [], borderRadius: [], shadows: [] },
     content: contentResult.status === "fulfilled" ? contentResult.value : { sections: [], images: [], links: [], meta: {} },
     techStack,
+    extractedStyles: toolkit.extractedStyles,
+    externalStylesheets: toolkit.externalStylesheets,
   };
 }
