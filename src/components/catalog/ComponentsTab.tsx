@@ -7,6 +7,9 @@ import { useState } from "react";
 export function ComponentsTab() {
   const { results } = useCrawlStore();
   const techStack = results[0]?.techStack;
+  const extractedStyles = results[0]?.extractedStyles;
+  const externalStylesheets = results[0]?.externalStylesheets;
+  const fontFamilies = results[0]?.design?.typography?.fontFamilies;
   const allComponents = results.flatMap((r) => r.components.components);
   const [filter, setFilter] = useState("all");
 
@@ -42,7 +45,14 @@ export function ComponentsTab() {
       <div className="columns-1 gap-6 md:columns-2 lg:columns-3">
         {filtered.map((component, i) => (
           <div key={`${component.name}-${i}`} className="mb-6 break-inside-avoid">
-            <ComponentCard component={component} index={i} techStack={techStack} />
+            <ComponentCard
+              component={component}
+              index={i}
+              techStack={techStack}
+              extractedStyles={extractedStyles}
+              externalStylesheets={externalStylesheets}
+              fontFamilies={fontFamilies}
+            />
           </div>
         ))}
       </div>

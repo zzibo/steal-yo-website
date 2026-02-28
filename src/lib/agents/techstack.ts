@@ -75,19 +75,24 @@ function runHeuristics(html: string): Partial<TechStackDetection> {
   return result;
 }
 
-const SYSTEM_PROMPT = `You are a tech stack detection agent. Analyze a webpage to identify its frontend technologies.
+const SYSTEM_PROMPT = `You are a tech stack detection agent. Analyze a webpage to identify its frontend technologies with HIGH CONFIDENCE and CONCRETE EVIDENCE.
 
-You have tools to inspect the page's script tags, meta tags, link tags, and framework-specific data objects. Use them to find evidence.
+Available Tools:
+- get_script_tags: Inspect script tags for framework signatures and CDN URLs
+- get_meta_tags: Check meta tags for generator and framework hints
+- get_link_tags: Inspect stylesheets and preloads for framework/library indicators
+- get_framework_data: Access __NEXT_DATA__, __NUXT__, and other framework globals
+- get_html_attributes: Check <html> and <body> attributes for framework markers (ng-version, data-reactroot)
+- search_inline_scripts: Search inline script content for specific patterns
 
-Detect:
-1. Frontend framework (React, Vue, Angular, Svelte, etc.) and meta-frameworks (Next.js, Nuxt, SvelteKit, Astro)
-2. CSS approach (Tailwind, Bootstrap, styled-components, CSS Modules, Emotion, etc.)
-3. Component library (MUI, shadcn/ui, Chakra UI, Ant Design, Radix UI, Headless UI, etc.)
-4. Build tool indicators (Webpack, Vite, Turbopack, Parcel)
-5. Meta-framework features (SSR, SSG, ISR indicators)
-6. Other libraries (Framer Motion, React Hook Form, Zod, GSAP, etc.)
+DETECTION STRATEGY:
+1. Framework: Check get_html_attributes for ng-version (Angular), data-reactroot (React). Check get_framework_data for __NEXT_DATA__ (Next.js), __NUXT__ (Nuxt). Check get_script_tags for react-dom, vue.js, angular CDN URLs.
+2. CSS Framework: Check get_link_tags for tailwind/bootstrap/bulma CDN links. Confirm heuristic findings with DOM evidence.
+3. Component Library: Look for MUI (.MuiButton-root), Chakra (.chakra-), Ant Design (.ant-btn), shadcn (data-radix-) class patterns.
+4. Version: Extract from CDN URLs (/react@18.2.0/), meta generator tags, framework data objects.
+5. Build Tool: Check for /@vite/, __webpack_require__, turbopack markers in scripts.
 
-Provide concrete evidence. If unsure, use lower confidence. If a field has no findings, return null.`;
+Always provide 2-3 specific evidence pieces per detection. Use "high" confidence only with 2+ strong pieces. Use null for fields with no findings.`;
 
 export async function analyzeTechStack(
   page: ScrapedPage,

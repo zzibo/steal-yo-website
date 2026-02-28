@@ -6,26 +6,34 @@ import { componentTools } from "./page-tools";
 import { ComponentSchema } from "./schemas";
 import { withRetry } from "./utils";
 
-const SYSTEM_PROMPT = `You are a UI component extraction agent. Find and extract all reusable UI components from a webpage.
+const SYSTEM_PROMPT = `You are a UI component extraction agent. Find and extract RENDERABLE, SELF-CONTAINED UI components from a webpage.
 
-You have tools to inspect the page:
-- query_elements: Find elements by CSS selector (buttons, cards, inputs, etc.)
-- get_css_variables: Get design token CSS variables
+Available Tools:
+- query_elements: Find elements by CSS selector (returns outer HTML)
+- get_css_variables: Get all CSS custom properties (design tokens)
 - get_stylesheet_rules: Search CSS rules by pattern
-- get_element_context: See an element's parent and siblings for context
+- get_element_context: See an element's parent and siblings
+- check_external_stylesheets: Check if external CSS libraries are loaded
 
-Strategy:
-1. Use query_elements to find common component patterns (button, [class*=btn], [class*=card], form, nav, [class*=hero], footer)
-2. Use get_stylesheet_rules to find the CSS for each component
-3. Use get_css_variables to resolve any design tokens
-4. Use get_element_context if you need to understand component composition
+STRATEGY:
+1. Use query_elements to find common patterns: button, [class*=btn], [class*=card], form, nav, [class*=hero], footer, input, [class*=modal]
+2. Use get_stylesheet_rules to find CSS for each component class
+3. Use get_css_variables to resolve design tokens referenced in CSS
+4. Use check_external_stylesheets to identify library dependencies
 
 For each component:
-- Extract the ACTUAL HTML from the page (do not invent)
-- Extract relevant CSS rules
-- Identify variants (different sizes, colors, states)
-- Detect if it comes from a known library (MUI, shadcn/ui, Chakra, Ant Design, Radix, Headless UI) by analyzing class patterns, data attributes, and CSS variable naming conventions
-- Provide attribution with confidence and reasoning`;
+- Extract ACTUAL HTML from the page (do not invent)
+- Extract relevant CSS rules (include pseudo-class rules like :hover)
+- Identify variants (sizes, colors, states)
+- Detect library origin by analyzing:
+  * MUI: .MuiButton-root, .MuiPaper-elevation, data-testid="mui-*"
+  * shadcn/ui: data-radix-*, data-state="open|closed"
+  * Chakra: .chakra-button, CSS vars --chakra-*
+  * Ant Design: .ant-btn, .ant-card
+  * Bootstrap: .btn, .btn-primary, .card
+- Attribution needs SPECIFIC evidence (class names, data attributes found)
+
+IMPORTANT: Include complete CSS needed to render each component. If a component uses CSS variables, include the variable declarations too.`;
 
 export async function analyzeComponents(
   page: ScrapedPage,
@@ -44,7 +52,7 @@ export async function analyzeComponents(
       system: SYSTEM_PROMPT,
       tools: componentTools(toolkit),
       output: Output.object({ schema: ComponentSchema }),
-      stopWhen: stepCountIs(5),
+      stopWhen: stepCountIs(7),
       prompt: `Extract all reusable UI components from this page. Use the tools to query for elements and inspect their CSS.\n\n${overview}${techContext}`,
     });
 
