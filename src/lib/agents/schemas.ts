@@ -62,7 +62,31 @@ export const ComponentSchema = z.object({
   })),
 });
 
-// Matches VibeAnalysis in types.ts
-export const VibeSchema = z.object({
-  vibe: z.string().describe("2-4 paragraph prose description of the site's design philosophy, mood, and aesthetic"),
+// Matches DesignAnalysis in types.ts
+export const DesignSchema = z.object({
+  styleClassification: z.object({
+    primary: z.string().describe("Primary design style: neo-brutalist, glassmorphism, minimalist, corporate, editorial, playful, etc."),
+    secondary: z.array(z.string()).describe("Supporting style tags"),
+    summary: z.string().describe("2-3 sentence design brief"),
+  }),
+  colorPalette: z.array(z.object({
+    hex: z.string().describe("Hex color code like #6366f1"),
+    role: z.enum(["primary", "secondary", "accent", "background", "surface", "text", "muted", "border", "error", "success"]),
+    name: z.string().describe("Human-readable color name like 'Deep Navy'"),
+  })),
+  typography: z.array(z.object({
+    family: z.string(),
+    role: z.enum(["heading", "body", "accent", "mono", "display"]),
+    weights: z.array(z.string()),
+    style: z.string().describe("Classification like 'geometric sans-serif', 'humanist serif'"),
+  })),
+  spacing: z.object({
+    system: z.string().describe("Spacing system: '8px grid', '4px base', 'fluid/clamp-based', 'tailwind default'"),
+    density: z.enum(["compact", "comfortable", "spacious"]),
+  }),
+  effects: z.object({
+    borderRadius: z.string().describe("e.g. 'sharp (0px)', 'subtle (4px)', 'rounded (12px)', 'pill'"),
+    shadows: z.string().describe("e.g. 'flat', 'subtle elevation', 'dramatic depth'"),
+    animations: z.string().describe("e.g. 'none', 'micro-interactions', 'heavy motion'"),
+  }),
 });
