@@ -339,16 +339,6 @@ export function techStackTools(toolkit: PageToolkit) {
       inputSchema: z.object({}),
       execute: async () => toolkit.metaTags,
     }),
-    get_link_tags: tool({
-      description: "Get all <link> tags with rel, href, and type attributes (stylesheets, preloads, icons, manifests)",
-      inputSchema: z.object({}),
-      execute: async () => toolkit.linkTags,
-    }),
-    get_framework_data: tool({
-      description: "Get framework-specific data objects like __NEXT_DATA__ (Next.js), __NUXT__ (Nuxt), or similar embedded JSON. Returns null if none found.",
-      inputSchema: z.object({}),
-      execute: async () => toolkit.frameworkData,
-    }),
     get_html_attributes: tool({
       description: "Get attributes from <html> and <body> tags (ng-version, data-framework, data-reactroot, etc.)",
       inputSchema: z.object({}),
@@ -362,25 +352,6 @@ export function techStackTools(toolkit: PageToolkit) {
           classes: toolkit.$("body").attr("class") || "",
         },
       }),
-    }),
-    search_inline_scripts: tool({
-      description: "Search inline script content for specific patterns (framework initialization, library imports, config objects)",
-      inputSchema: z.object({
-        pattern: z.string().describe("Text pattern to search for, e.g. 'createApp', 'ReactDOM', 'angular.bootstrap'"),
-      }),
-      execute: async ({ pattern }) => {
-        const matches: { context: string }[] = [];
-        toolkit.$("script").each((_, el) => {
-          const content = toolkit.$(el).html() || "";
-          if (!toolkit.$(el).attr("src") && content.includes(pattern)) {
-            const index = content.indexOf(pattern);
-            matches.push({
-              context: content.slice(Math.max(0, index - 100), index + 200),
-            });
-          }
-        });
-        return matches.slice(0, 5);
-      },
     }),
   };
 }

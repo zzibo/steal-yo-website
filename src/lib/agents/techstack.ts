@@ -75,24 +75,14 @@ function runHeuristics(html: string): Partial<TechStackDetection> {
   return result;
 }
 
-const SYSTEM_PROMPT = `You are a tech stack detection agent. Analyze a webpage to identify its frontend technologies with HIGH CONFIDENCE and CONCRETE EVIDENCE.
+const SYSTEM_PROMPT = `You are a tech stack detection agent. Quickly confirm or fill gaps in heuristic findings for a webpage's frontend technologies.
 
 Available Tools:
 - get_script_tags: Inspect script tags for framework signatures and CDN URLs
 - get_meta_tags: Check meta tags for generator and framework hints
-- get_link_tags: Inspect stylesheets and preloads for framework/library indicators
-- get_framework_data: Access __NEXT_DATA__, __NUXT__, and other framework globals
-- get_html_attributes: Check <html> and <body> attributes for framework markers (ng-version, data-reactroot)
-- search_inline_scripts: Search inline script content for specific patterns
+- get_html_attributes: Check <html> and <body> attributes for framework markers
 
-DETECTION STRATEGY:
-1. Framework: Check get_html_attributes for ng-version (Angular), data-reactroot (React). Check get_framework_data for __NEXT_DATA__ (Next.js), __NUXT__ (Nuxt). Check get_script_tags for react-dom, vue.js, angular CDN URLs.
-2. CSS Framework: Check get_link_tags for tailwind/bootstrap/bulma CDN links. Confirm heuristic findings with DOM evidence.
-3. Component Library: Look for MUI (.MuiButton-root), Chakra (.chakra-), Ant Design (.ant-btn), shadcn (data-radix-) class patterns.
-4. Version: Extract from CDN URLs (/react@18.2.0/), meta generator tags, framework data objects.
-5. Build Tool: Check for /@vite/, __webpack_require__, turbopack markers in scripts.
-
-Always provide 2-3 specific evidence pieces per detection. Use "high" confidence only with 2+ strong pieces. Use null for fields with no findings.`;
+In ONE step: call the tools, confirm heuristic findings, fill any gaps. Use "high" confidence only with 2+ strong evidence pieces. Use null for fields with no findings.`;
 
 export async function analyzeTechStack(
   page: ScrapedPage,
@@ -110,7 +100,7 @@ export async function analyzeTechStack(
         system: SYSTEM_PROMPT,
         tools: techStackTools(toolkit),
         output: Output.object({ schema: TechStackSchema }),
-        stopWhen: stepCountIs(4),
+        stopWhen: stepCountIs(1),
         prompt: `Detect technologies on this page. Use the available tools to inspect scripts, meta tags, link tags, and framework data.\n\nHeuristic findings:\n${JSON.stringify(heuristic, null, 2)}\n\n${overview}`,
       });
 
