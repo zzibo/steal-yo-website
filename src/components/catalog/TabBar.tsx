@@ -5,9 +5,8 @@ import { motion } from "framer-motion";
 
 const tabs = [
   { id: "components" as const, label: "Components", color: "#c85d3e" },
-  { id: "design" as const, label: "Design", color: "#2d6a4f" },
+  { id: "vibe" as const, label: "Vibe", color: "#2d6a4f" },
   { id: "layout" as const, label: "Layout", color: "#5b7fa5" },
-  { id: "content" as const, label: "Content", color: "#b8933a" },
   { id: "techstack" as const, label: "Tech Stack", color: "#7c5cbf" },
 ];
 
