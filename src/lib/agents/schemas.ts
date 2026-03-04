@@ -62,45 +62,7 @@ export const ComponentSchema = z.object({
   })),
 });
 
-// Matches DesignAnalysis in types.ts
-export const DesignSchema = z.object({
-  colors: z.array(z.object({
-    name: z.string(),
-    hex: z.string(),
-    usage: z.string(),
-  })),
-  typography: z.object({
-    fontFamilies: z.array(z.string()),
-    scale: z.array(z.object({
-      name: z.string(),
-      size: z.string(),
-      weight: z.string(),
-      lineHeight: z.string(),
-    })),
-  }),
-  spacing: z.array(z.string()),
-  borderRadius: z.array(z.string()),
-  shadows: z.array(z.string()),
-});
-
-// Matches ContentAnalysis in types.ts
-export const ContentSchema = z.object({
-  sections: z.array(z.object({
-    heading: z.string(),
-    text: z.string(),
-  })),
-  images: z.array(z.object({
-    src: z.string(),
-    alt: z.string(),
-  })),
-  links: z.array(z.object({
-    text: z.string(),
-    href: z.string(),
-    isExternal: z.boolean(),
-  })),
-  meta: z.object({
-    title: z.string().optional(),
-    description: z.string().optional(),
-    ogImage: z.string().nullable().optional(),
-  }),
+// Matches VibeAnalysis in types.ts
+export const VibeSchema = z.object({
+  vibe: z.string().describe("2-4 paragraph prose description of the site's design philosophy, mood, and aesthetic"),
 });

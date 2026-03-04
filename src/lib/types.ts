@@ -70,32 +70,8 @@ export interface ComponentAnalysis {
   components: ExtractedComponent[];
 }
 
-export interface DesignAnalysis {
-  colors: { name: string; hex: string; usage: string }[];
-  typography: {
-    fontFamilies: string[];
-    scale: {
-      name: string;
-      size: string;
-      weight: string;
-      lineHeight: string;
-    }[];
-  };
-  spacing: string[];
-  borderRadius: string[];
-  shadows: string[];
-}
-
-export interface ContentAnalysis {
-  sections: { heading: string; text: string }[];
-  images: {
-    src: string;
-    alt: string;
-    width?: number;
-    height?: number;
-  }[];
-  links: { text: string; href: string; isExternal: boolean }[];
-  meta: { title?: string; description?: string; ogImage?: string };
+export interface VibeAnalysis {
+  vibe: string;
 }
 
 export interface CrawlResult {
@@ -103,8 +79,7 @@ export interface CrawlResult {
   screenshot?: string;
   layout: LayoutAnalysis;
   components: ComponentAnalysis;
-  design: DesignAnalysis;
-  content: ContentAnalysis;
+  vibe: VibeAnalysis;
   techStack: TechStackDetection;
   extractedStyles?: string;
   externalStylesheets?: string[];
@@ -153,7 +128,7 @@ export interface ComponentAttribution {
 }
 
 export interface StealKitExport {
-  designSystem: string;
+  vibe: string;
   techStack: string;
   styleGuide: string;
   components: { filename: string; content: string }[];
