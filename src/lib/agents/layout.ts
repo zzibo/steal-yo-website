@@ -1,33 +1,20 @@
-import { generateText, Output, stepCountIs } from "ai";
+import { generateText, Output } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
+import * as cheerio from "cheerio";
 import type { LayoutAnalysis, ScrapedPage } from "../types";
 import type { PageToolkit } from "./page-tools";
-import { layoutTools } from "./page-tools";
 import { LayoutSchema } from "./schemas";
 import { withRetry } from "./utils";
 
-const SYSTEM_PROMPT = `You are a layout analysis agent. Analyze a webpage's SPATIAL STRUCTURE — not just what sections exist, but how they are positioned relative to each other.
-
-Available Tools:
-- get_landmark_sections: Find header, main, footer, nav, aside, section, article elements
-- get_media_queries: Find CSS responsive breakpoints
-- get_heading_hierarchy: See the H1-H6 content outline
-- query_elements: Query specific CSS selectors to inspect elements
-- get_section_hierarchy: Get the full parent-child nesting tree of structural elements
-
-STRATEGY:
-1. Use get_section_hierarchy to understand nesting (e.g., sidebar INSIDE main, or NEXT TO main?)
-2. Use get_landmark_sections for top-level elements
-3. Use query_elements to inspect specific containers for layout CSS classes (grid, flex, columns)
-4. Use get_media_queries to identify responsive breakpoints
+const SYSTEM_PROMPT = `You are a layout analysis agent. Given pre-extracted page structure data, analyze the spatial layout.
 
 For each section identify:
 - Purpose: header, hero, features, content, CTA, footer, sidebar, navigation, other
-- Layout method: grid (CSS Grid), flex (Flexbox row), stack (vertical/block), float, other
-- A brief description of what the section contains
-- The outer HTML tag with its key classes
+- Layout method: grid (CSS Grid), flex (Flexbox), stack (vertical/block), float, other
+- Brief description of what the section contains
+- The outer HTML tag with its key classes (short snippet, not full HTML)
 
-IMPORTANT: Capture layout relationships. If a page has a sidebar + main content area, that's a grid/flex parent with two children. If features are in a 3-column grid, note the column structure.`;
+Capture layout RELATIONSHIPS. If a page has sidebar + main content, note the parent container using grid/flex. If features use a 3-column grid, note that.`;
 
 export async function analyzeLayout(
   page: ScrapedPage,
@@ -45,13 +32,34 @@ export async function analyzeLayout(
       if (parts.length) techInfo = `\n\nDetected Tech Stack:\n${parts.join("\n")}`;
     }
 
+    const landmarks = JSON.stringify(toolkit.landmarkSections.slice(0, 20), null, 2);
+    const headings = JSON.stringify(toolkit.headingHierarchy.slice(0, 30), null, 2);
+    const mediaQueries = JSON.stringify(toolkit.mediaQueries.slice(0, 15), null, 2);
+
+    const structuralTags = new Set(["header", "main", "footer", "nav", "aside", "section", "article"]);
+    type SectionNode = { tag: string; classes: string; id?: string; children: SectionNode[] };
+    const buildTree = (parent: cheerio.Cheerio<cheerio.AnyNode>): SectionNode[] => {
+      const nodes: SectionNode[] = [];
+      parent.children().each((_, el) => {
+        const $el = toolkit.$(el);
+        const tag = $el.prop("tagName")?.toLowerCase() || "";
+        if (!structuralTags.has(tag)) return;
+        nodes.push({
+          tag,
+          classes: $el.attr("class")?.slice(0, 200) || "",
+          id: $el.attr("id") || undefined,
+          children: buildTree($el),
+        });
+      });
+      return nodes;
+    };
+    const sectionHierarchy = JSON.stringify(buildTree(toolkit.$("body")), null, 2);
+
     const { output } = await generateText({
       model: anthropic("claude-sonnet-4-5-20250929"),
       system: SYSTEM_PROMPT,
-      tools: layoutTools(toolkit),
       output: Output.object({ schema: LayoutSchema }),
-      stopWhen: stepCountIs(6),
-      prompt: `Analyze the layout of this page. Use the available tools to inspect landmarks, headings, and specific elements.\n\n${overview}${techInfo}`,
+      prompt: `Analyze the layout of this page using the pre-extracted data below.\n\n${overview}${techInfo}\n\n## Landmark Sections\n${landmarks}\n\n## Heading Hierarchy\n${headings}\n\n## Section Hierarchy (parent-child nesting)\n${sectionHierarchy}\n\n## Media Queries / Breakpoints\n${mediaQueries}`,
     });
 
     if (!output) throw new Error("No output generated");
