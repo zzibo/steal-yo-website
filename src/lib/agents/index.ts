@@ -1,7 +1,6 @@
 import { analyzeLayout } from "./layout";
 import { analyzeComponents } from "./components";
-import { analyzeDesign } from "./design";
-import { analyzeContent } from "./content";
+import { analyzeVibe } from "./vibe";
 import { analyzeTechStack } from "./techstack";
 import { precomputePageData } from "./page-tools";
 import { buildPageOverview } from "./utils";
@@ -12,7 +11,7 @@ export async function analyzePage(page: ScrapedPage): Promise<CrawlResult> {
   const toolkit = precomputePageData(page);
   const overview = buildPageOverview(page, toolkit);
 
-  // Tech stack runs first so we can pass context to other agents
+  // Tech stack runs first (regex + 1 AI step) so we can pass context
   const techStack = await analyzeTechStack(page, toolkit, overview);
 
   const techContext = {
@@ -21,12 +20,11 @@ export async function analyzePage(page: ScrapedPage): Promise<CrawlResult> {
     componentLibrary: techStack.componentLibrary?.name,
   };
 
-  // Other 4 agents run in parallel, ALL get tech stack context
-  const [layoutResult, componentsResult, designResult, contentResult] = await Promise.allSettled([
+  // 3 agents run in parallel
+  const [layoutResult, componentsResult, vibeResult] = await Promise.allSettled([
     analyzeLayout(page, toolkit, overview, techContext),
     analyzeComponents(page, toolkit, overview, techStack),
-    analyzeDesign(page, toolkit, overview, techContext),
-    analyzeContent(page, toolkit, overview),
+    analyzeVibe(page, toolkit, overview, techStack),
   ]);
 
   return {
@@ -34,8 +32,7 @@ export async function analyzePage(page: ScrapedPage): Promise<CrawlResult> {
     screenshot: page.screenshot,
     layout: layoutResult.status === "fulfilled" ? layoutResult.value : { sections: [], responsiveBreakpoints: [], navigationStructure: [] },
     components: componentsResult.status === "fulfilled" ? componentsResult.value : { components: [] },
-    design: designResult.status === "fulfilled" ? designResult.value : { colors: [], typography: { fontFamilies: [], scale: [] }, spacing: [], borderRadius: [], shadows: [] },
-    content: contentResult.status === "fulfilled" ? contentResult.value : { sections: [], images: [], links: [], meta: {} },
+    vibe: vibeResult.status === "fulfilled" ? vibeResult.value : { vibe: "" },
     techStack,
     extractedStyles: toolkit.extractedStyles,
     externalStylesheets: toolkit.externalStylesheets,
