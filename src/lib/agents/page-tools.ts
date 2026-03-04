@@ -518,7 +518,7 @@ export function componentTools(toolkit: PageToolkit) {
   };
 }
 
-export function designTools(toolkit: PageToolkit) {
+export function vibeTools(toolkit: PageToolkit) {
   return {
     get_css_variables: tool({
       description: "Get all CSS custom properties (design tokens) from :root and style tags",
@@ -526,141 +526,24 @@ export function designTools(toolkit: PageToolkit) {
       execute: async () => toolkit.cssVariables,
     }),
     get_all_colors: tool({
-      description: "Get all unique color values found in the page (hex, rgb, rgba, hsl). Includes colors from inline styles and style tags.",
+      description: "Get all unique color values found in the page (hex, rgb, rgba, hsl)",
       inputSchema: z.object({}),
       execute: async () => toolkit.allColors,
     }),
     get_font_declarations: tool({
-      description: "Get all font declarations: @font-face rules, Google Fonts links, and font-family usage in CSS",
+      description: "Get all font declarations: @font-face rules, Google Fonts links, and font-family usage",
       inputSchema: z.object({}),
       execute: async () => toolkit.fontDeclarations,
     }),
-    get_spacing_and_radii: tool({
-      description: "Get padding, margin, gap, and border-radius values found in CSS with usage frequency counts",
-      inputSchema: z.object({}),
-      execute: async () => ({
-        spacing: toolkit.spacingValues,
-        borderRadius: toolkit.borderRadiusValues,
-      }),
-    }),
-    analyze_color_usage: tool({
-      description: "Analyze which colors are used where (backgrounds, text, borders) with usage counts",
-      inputSchema: z.object({}),
-      execute: async () => {
-        const usage = new Map<string, { bg: number; text: number; border: number }>();
-        toolkit.$("style").each((_, styleEl) => {
-          const css = toolkit.$(styleEl).html() || "";
-          for (const match of css.matchAll(/background(?:-color)?\s*:\s*([#\w(),./ -]+)/gi)) {
-            const color = match[1].trim().toLowerCase();
-            const e = usage.get(color) || { bg: 0, text: 0, border: 0 };
-            e.bg++;
-            usage.set(color, e);
-          }
-          for (const match of css.matchAll(/(?:^|[{;\s])color\s*:\s*([#\w(),./ -]+)/gi)) {
-            const color = match[1].trim().toLowerCase();
-            const e = usage.get(color) || { bg: 0, text: 0, border: 0 };
-            e.text++;
-            usage.set(color, e);
-          }
-          for (const match of css.matchAll(/border(?:-color)?\s*:[^;]*?([#]\w{3,8}|rgba?\([^)]+\)|hsla?\([^)]+\))/gi)) {
-            const color = match[1].trim().toLowerCase();
-            const e = usage.get(color) || { bg: 0, text: 0, border: 0 };
-            e.border++;
-            usage.set(color, e);
-          }
-        });
-        return [...usage.entries()]
-          .map(([color, counts]) => ({ color, ...counts }))
-          .filter(({ bg, text, border }) => bg + text + border > 0)
-          .sort((a, b) => (b.bg + b.text + b.border) - (a.bg + a.text + a.border))
-          .slice(0, 50);
-      },
-    }),
-    analyze_typography_usage: tool({
-      description: "Get actual font sizes, weights, and line heights used on headings and body text elements",
-      inputSchema: z.object({}),
-      execute: async () => {
-        const selectors = ["h1", "h2", "h3", "h4", "h5", "h6", "p", "a", "li"];
-        const results: { tag: string; fontSize: string; fontWeight: string; lineHeight: string; fontFamily: string; count: number }[] = [];
-        for (const sel of selectors) {
-          const count = toolkit.$(sel).length;
-          if (count === 0) continue;
-          let fontSize = "", fontWeight = "", lineHeight = "", fontFamily = "";
-          toolkit.$("style").each((_, styleEl) => {
-            const css = toolkit.$(styleEl).html() || "";
-            const re = new RegExp(`(?:^|[},\\s])${sel}\\s*\\{([^}]+)\\}`, "gi");
-            const match = re.exec(css);
-            if (match) {
-              const rules = match[1];
-              fontSize = rules.match(/font-size\s*:\s*([^;]+)/i)?.[1]?.trim() || fontSize;
-              fontWeight = rules.match(/font-weight\s*:\s*([^;]+)/i)?.[1]?.trim() || fontWeight;
-              lineHeight = rules.match(/line-height\s*:\s*([^;]+)/i)?.[1]?.trim() || lineHeight;
-              fontFamily = rules.match(/font-family\s*:\s*([^;]+)/i)?.[1]?.trim() || fontFamily;
-            }
-          });
-          results.push({ tag: sel, fontSize: fontSize || "inherit", fontWeight: fontWeight || "normal", lineHeight: lineHeight || "normal", fontFamily: fontFamily || "inherit", count });
-        }
-        return results;
-      },
-    }),
-  };
-}
-
-export function contentTools(toolkit: PageToolkit) {
-  return {
     get_heading_hierarchy: tool({
-      description: "Get the full H1-H6 heading outline showing the content structure",
+      description: "Get the H1-H6 heading outline showing content structure and voice",
       inputSchema: z.object({}),
       execute: async () => toolkit.headingHierarchy,
     }),
-    get_schema_org: tool({
-      description: "Get all JSON-LD structured data (Schema.org) found in the page",
-      inputSchema: z.object({}),
-      execute: async () => toolkit.schemaOrg,
-    }),
     get_meta_tags: tool({
-      description: "Get all meta tags including title, description, OG tags, author, etc.",
+      description: "Get all meta tags including title, description, OG tags",
       inputSchema: z.object({}),
       execute: async () => toolkit.metaTags,
-    }),
-    get_form_fields: tool({
-      description: "Get all form inputs, textareas, selects, and submit buttons with their labels",
-      inputSchema: z.object({}),
-      execute: async () => toolkit.formFields,
-    }),
-    query_ctas: tool({
-      description: "Find all call-to-action buttons and prominent action links on the page",
-      inputSchema: z.object({}),
-      execute: async () => {
-        const ctas: { text: string; href: string; tag: string; classes: string }[] = [];
-        toolkit.$("button, [role='button'], .btn, [class*='button'], a.cta, a[class*='cta']").each((_, el) => {
-          const $el = toolkit.$(el);
-          const text = $el.text().trim();
-          if (text && ctas.length < 20) {
-            ctas.push({
-              text,
-              href: $el.attr("href") || $el.closest("a").attr("href") || "",
-              tag: $el.prop("tagName")?.toLowerCase() || "",
-              classes: $el.attr("class")?.slice(0, 200) || "",
-            });
-          }
-        });
-        // Also find prominent action links
-        const actionWords = ["get started", "sign up", "try", "download", "buy", "subscribe", "learn more", "contact", "start free", "book a demo"];
-        toolkit.$("a").each((_, el) => {
-          const $el = toolkit.$(el);
-          const text = $el.text().trim().toLowerCase();
-          if (actionWords.some((w) => text.includes(w)) && ctas.length < 25) {
-            ctas.push({
-              text: $el.text().trim(),
-              href: $el.attr("href") || "",
-              tag: "a",
-              classes: $el.attr("class")?.slice(0, 200) || "",
-            });
-          }
-        });
-        return ctas;
-      },
     }),
   };
 }

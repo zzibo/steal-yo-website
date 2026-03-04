@@ -9,7 +9,7 @@ export function ComponentsTab() {
   const techStack = results[0]?.techStack;
   const extractedStyles = results[0]?.extractedStyles;
   const externalStylesheets = results[0]?.externalStylesheets;
-  const fontFamilies = results[0]?.design?.typography?.fontFamilies;
+  const fontFamilies: string[] | undefined = undefined;
   const allComponents = results.flatMap((r) => r.components.components);
   const [filter, setFilter] = useState("all");
 

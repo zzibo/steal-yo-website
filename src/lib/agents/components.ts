@@ -6,7 +6,7 @@ import { componentTools } from "./page-tools";
 import { ComponentSchema } from "./schemas";
 import { withRetry } from "./utils";
 
-const SYSTEM_PROMPT = `You are a UI component extraction agent. Find and extract RENDERABLE, SELF-CONTAINED UI components from a webpage.
+const SYSTEM_PROMPT = `You are a UI component extraction agent. Find the TOP 3-5 most visually interesting and unique components on a webpage.
 
 Available Tools:
 - query_elements: Find elements by CSS selector (returns outer HTML)
@@ -16,24 +16,18 @@ Available Tools:
 - check_external_stylesheets: Check if external CSS libraries are loaded
 
 STRATEGY:
-1. Use query_elements to find common patterns: button, [class*=btn], [class*=card], form, nav, [class*=hero], footer, input, [class*=modal]
-2. Use get_stylesheet_rules to find CSS for each component class
-3. Use get_css_variables to resolve design tokens referenced in CSS
-4. Use check_external_stylesheets to identify library dependencies
+1. Survey the page for standout components — hero sections, feature cards, pricing tables, testimonials, unique navigation patterns
+2. SKIP generic elements: simple buttons, plain text links, basic inputs, standard badges
+3. Pick the 3-5 components that best showcase the site's design craft
+4. For each, extract actual HTML + complete CSS (including :hover, CSS variables)
 
 For each component:
 - Extract ACTUAL HTML from the page (do not invent)
 - Extract relevant CSS rules (include pseudo-class rules like :hover)
-- Identify variants (sizes, colors, states)
-- Detect library origin by analyzing:
-  * MUI: .MuiButton-root, .MuiPaper-elevation, data-testid="mui-*"
-  * shadcn/ui: data-radix-*, data-state="open|closed"
-  * Chakra: .chakra-button, CSS vars --chakra-*
-  * Ant Design: .ant-btn, .ant-card
-  * Bootstrap: .btn, .btn-primary, .card
-- Attribution needs SPECIFIC evidence (class names, data attributes found)
+- Identify variants if they exist
+- Detect library origin (MUI, shadcn/ui, Chakra, Ant Design, Bootstrap) with SPECIFIC evidence
 
-IMPORTANT: Include complete CSS needed to render each component. If a component uses CSS variables, include the variable declarations too.`;
+Quality over quantity. Only extract components worth studying.`;
 
 export async function analyzeComponents(
   page: ScrapedPage,
@@ -52,8 +46,8 @@ export async function analyzeComponents(
       system: SYSTEM_PROMPT,
       tools: componentTools(toolkit),
       output: Output.object({ schema: ComponentSchema }),
-      stopWhen: stepCountIs(7),
-      prompt: `Extract all reusable UI components from this page. Use the tools to query for elements and inspect their CSS.\n\n${overview}${techContext}`,
+      stopWhen: stepCountIs(5),
+      prompt: `Find the 3-5 most visually impressive and unique components on this page. Skip generic elements like plain buttons or simple inputs — focus on components that showcase real design craft.\n\n${overview}${techContext}`,
     });
 
     if (!output) throw new Error("No output generated");
