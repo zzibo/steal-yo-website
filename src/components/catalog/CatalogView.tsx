@@ -3,9 +3,8 @@
 import { useCrawlStore } from "@/lib/store";
 import { TabBar } from "./TabBar";
 import { ComponentsTab } from "./ComponentsTab";
-import { DesignTab } from "./DesignTab";
+import { VibeTab } from "./VibeTab";
 import { LayoutTab } from "./LayoutTab";
-import { ContentTab } from "./ContentTab";
 import { TechStackTab } from "./TechStackTab";
 import { exportStealKit } from "@/lib/export";
 import { motion, AnimatePresence } from "framer-motion";
@@ -22,9 +21,8 @@ export function CatalogView() {
 
   const tabContent: Record<string, React.ReactNode> = {
     components: <ComponentsTab />,
-    design: <DesignTab />,
+    vibe: <VibeTab />,
     layout: <LayoutTab />,
-    content: <ContentTab />,
     techstack: <TechStackTab />,
   };
 

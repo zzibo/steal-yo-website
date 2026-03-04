@@ -7,9 +7,8 @@ export const LOADING_STAGES = [
   { label: "Crawling pages", detail: "Fetching HTML, screenshots, and assets" },
   { label: "Detecting tech stack", detail: "Identifying frameworks and libraries" },
   { label: "Analyzing layout", detail: "Mapping page sections and structure" },
-  { label: "Extracting components", detail: "Finding reusable UI patterns" },
-  { label: "Reading design tokens", detail: "Colors, typography, spacing, shadows" },
-  { label: "Scanning content", detail: "Text, images, links, and metadata" },
+  { label: "Extracting components", detail: "Finding standout UI patterns" },
+  { label: "Reading the vibe", detail: "Capturing design philosophy and aesthetic" },
 ] as const;
 
 interface CrawlState {
@@ -19,7 +18,7 @@ interface CrawlState {
   loadingStage: number;
   error: string | null;
   results: CrawlResult[];
-  activeTab: "components" | "design" | "layout" | "content" | "techstack";
+  activeTab: "components" | "vibe" | "layout" | "techstack";
 
   setUrl: (url: string) => void;
   setDepth: (depth: number) => void;
