@@ -325,6 +325,114 @@ function extractExternalStylesheets($: cheerio.CheerioAPI): string[] {
   return urls;
 }
 
+// ── Component candidate extraction ───────────────────────────────
+
+export interface ComponentCandidate {
+  selector: string;
+  tag: string;
+  classes: string;
+  outerHtml: string;
+  matchingCss: string;
+  parentTag: string;
+  parentClasses: string;
+  siblingCount: number;
+}
+
+const COMPONENT_SELECTORS = [
+  '[class*="card"]', '[class*="Card"]',
+  '[class*="hero"]', '[class*="Hero"]',
+  '[class*="nav"]', '[class*="Nav"]',
+  '[class*="btn"]', '[class*="Btn"]', '[class*="button"]', '[class*="Button"]',
+  '[class*="pricing"]', '[class*="Pricing"]',
+  '[class*="feature"]', '[class*="Feature"]',
+  '[class*="testimonial"]', '[class*="Testimonial"]',
+  '[class*="cta"]', '[class*="CTA"]',
+  '[class*="banner"]', '[class*="Banner"]',
+  '[class*="modal"]', '[class*="Modal"]',
+  '[class*="footer"]', '[class*="Footer"]',
+  '[class*="header"]', '[class*="Header"]',
+  '[class*="sidebar"]', '[class*="Sidebar"]',
+  '[class*="accordion"]', '[class*="Accordion"]',
+  '[class*="tab"]', '[class*="Tab"]',
+  '[class*="dropdown"]', '[class*="Dropdown"]',
+  '[class*="carousel"]', '[class*="Carousel"]',
+  '[class*="slider"]', '[class*="Slider"]',
+  '[class*="menu"]', '[class*="Menu"]',
+  '[class*="tooltip"]', '[class*="Tooltip"]',
+  'form',
+  'table',
+];
+
+export function extractCandidateComponents(toolkit: PageToolkit): ComponentCandidate[] {
+  const candidates: ComponentCandidate[] = [];
+  const seenHtml = new Set<string>();
+
+  for (const selector of COMPONENT_SELECTORS) {
+    try {
+      toolkit.$(selector).each((_, el) => {
+        if (candidates.length >= 20) return;
+        const $el = toolkit.$(el);
+        const outerHtml = toolkit.$.html(el)?.slice(0, 3000) || "";
+
+        // Skip tiny elements (likely just icons or labels)
+        if (outerHtml.length < 50) return;
+
+        // Skip elements that are just wrappers with one text child
+        const children = $el.children();
+        const textLen = $el.text().trim().length;
+        if (children.length === 0 && textLen < 20) return;
+
+        // Deduplicate by first 200 chars of HTML
+        const signature = outerHtml.slice(0, 200);
+        if (seenHtml.has(signature)) return;
+        seenHtml.add(signature);
+
+        const classes = $el.attr("class")?.slice(0, 300) || "";
+        const parent = $el.parent();
+
+        // Find matching CSS rules
+        const matchingCss = findMatchingCssRules(toolkit, classes);
+
+        candidates.push({
+          selector,
+          tag: $el.prop("tagName")?.toLowerCase() || "",
+          classes,
+          outerHtml,
+          matchingCss,
+          parentTag: parent.prop("tagName")?.toLowerCase() || "",
+          parentClasses: parent.attr("class")?.slice(0, 200) || "",
+          siblingCount: parent.children().length,
+        });
+      });
+    } catch {
+      // invalid selector, skip
+    }
+  }
+
+  return candidates.slice(0, 15);
+}
+
+function findMatchingCssRules(toolkit: PageToolkit, classes: string): string {
+  if (!classes) return "";
+  const classNames = classes.split(/\s+/).filter(Boolean).slice(0, 5);
+  const rules: string[] = [];
+
+  toolkit.$("style").each((_, el) => {
+    const css = toolkit.$(el).html() || "";
+    for (const className of classNames) {
+      const escaped = className.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const re = new RegExp(`[^{}]*\\.${escaped}[^{]*\\{[^}]*\\}`, "gi");
+      let m;
+      while ((m = re.exec(css)) !== null) {
+        if (rules.length >= 15) break;
+        rules.push(m[0].trim().slice(0, 500));
+      }
+    }
+  });
+
+  return rules.join("\n\n").slice(0, 3000);
+}
+
 // ── Tool factory functions ────────────────────────────────────────
 
 export function techStackTools(toolkit: PageToolkit) {
