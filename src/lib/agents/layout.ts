@@ -1,6 +1,7 @@
 import { generateText, Output } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
-import * as cheerio from "cheerio";
+import type { Cheerio } from "cheerio";
+import type { AnyNode } from "domhandler";
 import type { LayoutAnalysis, ScrapedPage } from "../types";
 import type { PageToolkit } from "./page-tools";
 import { LayoutSchema } from "./schemas";
@@ -38,7 +39,7 @@ export async function analyzeLayout(
 
     const structuralTags = new Set(["header", "main", "footer", "nav", "aside", "section", "article"]);
     type SectionNode = { tag: string; classes: string; id?: string; children: SectionNode[] };
-    const buildTree = (parent: cheerio.Cheerio<cheerio.AnyNode>): SectionNode[] => {
+    const buildTree = (parent: Cheerio<AnyNode>): SectionNode[] => {
       const nodes: SectionNode[] = [];
       parent.children().each((_, el) => {
         const $el = toolkit.$(el);
