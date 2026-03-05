@@ -1,11 +1,30 @@
 import JSZip from "jszip";
 import type { CrawlResult, StealKitExport } from "./types";
 
-export function generateVibeMd(results: CrawlResult[]): string {
-  const vibe = results[0]?.vibe;
-  if (!vibe?.vibe) return "# Design Vibe\n\nNo vibe data available.\n";
+export function generateDesignMd(results: CrawlResult[]): string {
+  const design = results[0]?.design;
+  if (!design) return "# Design System\n\nNo design data available.\n";
 
-  return `# Design Vibe\n\n${vibe.vibe}\n`;
+  let md = "# Design System\n\n";
+  md += `## Style: ${design.styleClassification.primary}\n\n`;
+  md += `${design.styleClassification.summary}\n\n`;
+
+  if (design.colorPalette.length) {
+    md += "## Color Palette\n\n";
+    design.colorPalette.forEach((c) => { md += `- **${c.name}** (${c.role}): \`${c.hex}\`\n`; });
+    md += "\n";
+  }
+
+  if (design.typography.length) {
+    md += "## Typography\n\n";
+    design.typography.forEach((t) => { md += `- **${t.family}** (${t.role}): ${t.style}, weights: ${t.weights.join(", ")}\n`; });
+    md += "\n";
+  }
+
+  md += `## Spacing\n\n${design.spacing.system} (${design.spacing.density})\n\n`;
+  md += `## Effects\n\n- Border radius: ${design.effects.borderRadius}\n- Shadows: ${design.effects.shadows}\n- Animations: ${design.effects.animations}\n`;
+
+  return md;
 }
 
 export function generateTechStackMd(results: CrawlResult[]): string {
@@ -97,7 +116,7 @@ export function generateMasterMd(results: CrawlResult[]): string {
   md += `> Inspired by ${url}. Design principles extracted for educational study.\n`;
   md += `> Generated on ${new Date().toISOString()}\n\n---\n\n`;
   md += generateTechStackMd(results) + "\n---\n\n";
-  md += generateVibeMd(results) + "\n---\n\n";
+  md += generateDesignMd(results) + "\n---\n\n";
   md += generateStyleGuideMd(results) + "\n---\n\n";
 
   const comps = results.flatMap((r) => r.components.components);
@@ -121,7 +140,7 @@ export async function exportStealKit(results: CrawlResult[]): Promise<void> {
   }
 
   const kit: StealKitExport = {
-    vibe: generateVibeMd(results),
+    design: generateDesignMd(results),
     techStack: generateTechStackMd(results),
     styleGuide: generateStyleGuideMd(results),
     components: generateComponentFiles(results),
@@ -131,7 +150,7 @@ export async function exportStealKit(results: CrawlResult[]): Promise<void> {
 
   const zip = new JSZip();
   zip.file("steal-kit.md", kit.masterFile);
-  zip.file("vibe.md", kit.vibe);
+  zip.file("design.md", kit.design);
   zip.file("tech-stack.md", kit.techStack);
   zip.file("style-guide.md", kit.styleGuide);
 
