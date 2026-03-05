@@ -4,8 +4,8 @@ import { useCrawlStore } from "@/lib/store";
 import { motion } from "framer-motion";
 
 const tabs = [
+  { id: "design" as const, label: "Design", color: "#2d6a4f" },
   { id: "components" as const, label: "Components", color: "#c85d3e" },
-  { id: "vibe" as const, label: "Vibe", color: "#2d6a4f" },
   { id: "layout" as const, label: "Layout", color: "#5b7fa5" },
   { id: "techstack" as const, label: "Tech Stack", color: "#7c5cbf" },
 ];
