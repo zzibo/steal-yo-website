@@ -3,7 +3,7 @@
 import { useCrawlStore } from "@/lib/store";
 import { TabBar } from "./TabBar";
 import { ComponentsTab } from "./ComponentsTab";
-import { VibeTab } from "./VibeTab";
+import { DesignTab } from "./DesignTab";
 import { LayoutTab } from "./LayoutTab";
 import { TechStackTab } from "./TechStackTab";
 import { exportStealKit } from "@/lib/export";
@@ -20,8 +20,8 @@ export function CatalogView() {
   };
 
   const tabContent: Record<string, React.ReactNode> = {
+    design: <DesignTab />,
     components: <ComponentsTab />,
-    vibe: <VibeTab />,
     layout: <LayoutTab />,
     techstack: <TechStackTab />,
   };
