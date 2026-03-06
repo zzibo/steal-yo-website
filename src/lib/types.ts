@@ -61,6 +61,7 @@ export interface ExtractedComponent {
     | "other";
   html: string;
   css: string;
+  recreatedHtml: string;
   variants: string[];
   description: string;
   attribution?: ComponentAttribution;

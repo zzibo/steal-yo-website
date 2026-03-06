@@ -94,16 +94,16 @@ export function generateComponentFiles(results: CrawlResult[]): { filename: stri
 <head>
   <meta charset="UTF-8">
   <title>${comp.name}</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <style>
 body { font-family: system-ui, sans-serif; padding: 2rem; background: #f5f5f5; }
-${comp.css}
   </style>
 </head>
 <body>
   <!-- ${comp.name} (${comp.category}) -->
   <!-- ${comp.description} -->
 ${comp.attribution?.library ? `  <!-- Library: ${comp.attribution.library} (${comp.attribution.confidence}) -->` : "  <!-- Custom component -->"}
-  ${comp.html}
+  ${comp.recreatedHtml || comp.html}
 </body>
 </html>`,
     };
@@ -126,7 +126,10 @@ export function generateMasterMd(results: CrawlResult[]): string {
       md += `## ${c.name} (${c.category})\n\n`;
       md += `${c.description}\n\n`;
       if (c.attribution?.library) md += `**Library:** ${c.attribution.library}\n\n`;
-      md += "```html\n" + c.html + "\n```\n\n";
+      if (c.recreatedHtml) {
+        md += "### Recreation (Tailwind)\n\n```html\n" + c.recreatedHtml + "\n```\n\n";
+      }
+      md += "### Original\n\n```html\n" + c.html + "\n```\n\n";
       if (c.css) md += "```css\n" + c.css + "\n```\n\n";
     });
   }
