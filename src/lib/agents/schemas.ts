@@ -50,8 +50,9 @@ export const ComponentSchema = z.object({
   components: z.array(z.object({
     name: z.string(),
     category: z.enum(["button", "card", "input", "modal", "navbar", "hero", "footer", "form", "badge", "other"]),
-    html: z.string(),
-    css: z.string(),
+    html: z.string().describe("The original HTML from the page (for reference)"),
+    css: z.string().describe("The original CSS from the page (for reference)"),
+    recreatedHtml: z.string().describe("Standalone HTML recreation using Tailwind CSS classes that visually matches the original. Must be self-contained — no external images, no relative URLs. Use placeholder images via https://placehold.co/ if needed. Use inline SVGs for icons."),
     variants: z.array(z.string()),
     description: z.string(),
     attribution: z.object({
