@@ -53,6 +53,7 @@ export const ComponentSchema = z.object({
     html: z.string().describe("The original HTML from the page (for reference)"),
     css: z.string().describe("The original CSS from the page (for reference)"),
     recreatedHtml: z.string().describe("Standalone HTML recreation using Tailwind CSS classes that visually matches the original. Must be self-contained — no external images, no relative URLs. Use placeholder images via https://placehold.co/ if needed. Use inline SVGs for icons."),
+    reactCode: z.string().describe("A complete, self-contained React TSX component. Include a TypeScript interface named {ComponentName}Props with typed props for all variable content (text as string, images as string URLs, handlers as () => void, lists as string[]). Use a named export function (not default). Style with Tailwind classes using the site's actual hex colors as arbitrary values (e.g. bg-[#6366f1]). Provide default values for all optional props via destructuring. Icons as inline JSX SVG elements. Images as placehold.co URLs in defaults. No imports needed — component will be used in a React + Tailwind project."),
     variants: z.array(z.string()),
     description: z.string(),
     attribution: z.object({

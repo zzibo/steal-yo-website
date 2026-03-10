@@ -13,7 +13,7 @@ export function ComponentCard({ component, index, techStack, extractedStyles, ex
   fontFamilies?: string[];
 }) {
   const [showCode, setShowCode] = useState(false);
-  const [codeTab, setCodeTab] = useState<"recreation" | "original">("recreation");
+  const [codeTab, setCodeTab] = useState<"react" | "html" | "original">("react");
   const [copied, setCopied] = useState<string | null>(null);
   const [iframeHeight, setIframeHeight] = useState(120);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -112,9 +112,9 @@ export function ComponentCard({ component, index, techStack, extractedStyles, ex
             className="bg-[var(--background)] px-3 py-1.5 text-xs text-[var(--muted)] transition hover:text-[var(--ink)]">
             {showCode ? "Hide Code" : "View Code"}
           </button>
-          <button onClick={() => copy(component.recreatedHtml || component.html, "html")}
+          <button onClick={() => copy(component.reactCode || component.recreatedHtml || component.html, "code")}
             className="bg-[var(--background)] px-3 py-1.5 text-xs text-[var(--muted)] transition hover:text-[var(--ink)]">
-            {copied === "html" ? "Copied!" : "Copy HTML"}
+            {copied === "code" ? "Copied!" : "Copy React"}
           </button>
         </div>
 
@@ -131,14 +131,24 @@ export function ComponentCard({ component, index, techStack, extractedStyles, ex
               {/* Code tabs */}
               <div className="flex gap-1 mb-2">
                 <button
-                  onClick={() => setCodeTab("recreation")}
+                  onClick={() => setCodeTab("react")}
                   className={`px-2 py-1 text-[10px] font-medium transition ${
-                    codeTab === "recreation"
+                    codeTab === "react"
                       ? "bg-[var(--accent)] text-white"
                       : "bg-[var(--background)] text-[var(--muted)] hover:text-[var(--ink)]"
                   }`}
                 >
-                  Recreation (Tailwind)
+                  React
+                </button>
+                <button
+                  onClick={() => setCodeTab("html")}
+                  className={`px-2 py-1 text-[10px] font-medium transition ${
+                    codeTab === "html"
+                      ? "bg-[var(--accent)] text-white"
+                      : "bg-[var(--background)] text-[var(--muted)] hover:text-[var(--ink)]"
+                  }`}
+                >
+                  HTML
                 </button>
                 <button
                   onClick={() => setCodeTab("original")}
@@ -153,7 +163,12 @@ export function ComponentCard({ component, index, techStack, extractedStyles, ex
               </div>
 
               <div className="ruled-lines overflow-x-auto bg-[var(--code-bg)] p-4" style={{ borderLeft: "2px solid rgba(200,80,60,0.3)" }}>
-                {codeTab === "recreation" ? (
+                {codeTab === "react" ? (
+                  <>
+                    <p className="mb-2 font-mono text-[10px] text-[var(--accent)] opacity-50">REACT TSX</p>
+                    <pre className="font-mono text-xs text-[var(--code-fg)]"><code>{component.reactCode || "(no React component generated)"}</code></pre>
+                  </>
+                ) : codeTab === "html" ? (
                   <>
                     <p className="mb-2 font-mono text-[10px] text-[var(--accent)] opacity-50">TAILWIND HTML</p>
                     <pre className="font-mono text-xs text-[var(--code-fg)]"><code>{component.recreatedHtml || "(no recreation generated)"}</code></pre>
