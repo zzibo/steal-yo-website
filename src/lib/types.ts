@@ -62,6 +62,7 @@ export interface ExtractedComponent {
   html: string;
   css: string;
   recreatedHtml: string;
+  reactCode: string;
   variants: string[];
   description: string;
   attribution?: ComponentAttribution;
@@ -153,9 +154,8 @@ export interface ComponentAttribution {
 }
 
 export interface StealKitExport {
-  design: string;
-  techStack: string;
-  styleGuide: string;
   components: { filename: string; content: string }[];
-  masterFile: string;
+  tailwindConfig: string;
+  indexFile: string;
+  readme: string;
 }
