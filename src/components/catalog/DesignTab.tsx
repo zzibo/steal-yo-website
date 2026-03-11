@@ -4,8 +4,8 @@ import { useCrawlStore } from "@/lib/store";
 import { motion } from "framer-motion";
 
 export function DesignTab() {
-  const { results } = useCrawlStore();
-  const design = results[0]?.design;
+  const { results, design: streamedDesign } = useCrawlStore();
+  const design = streamedDesign || results[0]?.design;
 
   if (!design) return <p className="text-[var(--muted)]">No design data extracted.</p>;
 
