@@ -10,20 +10,36 @@ import { exportStealKit } from "@/lib/export";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 
+function TabSpinner({ label }: { label: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 gap-4">
+      <motion.span
+        animate={{ rotate: 360 }}
+        transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+        className="block h-6 w-6 rounded-full border-2 border-[var(--accent)] border-t-transparent"
+      />
+      <p className="font-hand text-sm text-[var(--muted)]">Analyzing {label}...</p>
+    </div>
+  );
+}
+
 export function CatalogView() {
   const router = useRouter();
-  const { results, activeTab, reset, url } = useCrawlStore();
+  const { results, activeTab, reset, url, status, screenshot, pageCount, design, components, layout, techStack } = useCrawlStore();
 
   const handleNewCrawl = () => {
     reset();
     router.push("/");
   };
 
+  const isDone = status === "done";
+  const displayPageCount = isDone ? results.length : pageCount;
+
   const tabContent: Record<string, React.ReactNode> = {
-    design: <DesignTab />,
-    components: <ComponentsTab />,
-    layout: <LayoutTab />,
-    techstack: <TechStackTab />,
+    design: design ? <DesignTab /> : <TabSpinner label="design system" />,
+    components: components ? <ComponentsTab /> : <TabSpinner label="components" />,
+    layout: layout ? <LayoutTab /> : <TabSpinner label="layout" />,
+    techstack: techStack ? <TechStackTab /> : <TabSpinner label="tech stack" />,
   };
 
   return (
@@ -33,13 +49,14 @@ export function CatalogView() {
         <div>
           <h1 className="font-serif text-2xl text-[var(--ink)]">steal yo website</h1>
           <p className="font-hand text-sm text-[var(--muted)]">
-            {url} &mdash; {results.length} page(s) analyzed
+            {url} &mdash; {displayPageCount} page(s) {isDone ? "analyzed" : "analyzing..."}
           </p>
         </div>
         <div className="flex gap-3">
           <button
-            onClick={() => exportStealKit(results)}
-            className="bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)]"
+            onClick={() => isDone && exportStealKit(results)}
+            disabled={!isDone}
+            className="bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
           >
             Export Steal Kit
           </button>
@@ -53,7 +70,7 @@ export function CatalogView() {
       </div>
 
       {/* Hero screenshot */}
-      {results[0]?.screenshot && (
+      {screenshot && (
         <div className="mx-auto mb-10 max-w-2xl">
           <motion.div
             initial={{ opacity: 0, rotate: -3, y: 20 }}
@@ -62,7 +79,7 @@ export function CatalogView() {
             className="tape bg-white p-4 pb-12 shadow-lg"
             style={{ boxShadow: "4px 6px 20px var(--shadow)" }}
           >
-            <img src={results[0].screenshot} alt="Page screenshot" className="w-full" />
+            <img src={screenshot} alt="Page screenshot" className="w-full" />
             <p className="font-hand mt-2 text-center text-sm text-[var(--muted)]">{url}</p>
           </motion.div>
         </div>

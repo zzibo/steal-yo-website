@@ -1,138 +1,120 @@
 import JSZip from "jszip";
 import type { CrawlResult, StealKitExport } from "./types";
 
-export function generateDesignMd(results: CrawlResult[]): string {
-  const design = results[0]?.design;
-  if (!design) return "# Design System\n\nNo design data available.\n";
-
-  let md = "# Design System\n\n";
-  md += `## Style: ${design.styleClassification.primary}\n\n`;
-  md += `${design.styleClassification.summary}\n\n`;
-
-  if (design.colorPalette.length) {
-    md += "## Color Palette\n\n";
-    design.colorPalette.forEach((c) => { md += `- **${c.name}** (${c.role}): \`${c.hex}\`\n`; });
-    md += "\n";
-  }
-
-  if (design.typography.length) {
-    md += "## Typography\n\n";
-    design.typography.forEach((t) => { md += `- **${t.family}** (${t.role}): ${t.style}, weights: ${t.weights.join(", ")}\n`; });
-    md += "\n";
-  }
-
-  md += `## Spacing\n\n${design.spacing.system} (${design.spacing.density})\n\n`;
-  md += `## Effects\n\n- Border radius: ${design.effects.borderRadius}\n- Shadows: ${design.effects.shadows}\n- Animations: ${design.effects.animations}\n`;
-
-  return md;
+function toPascalCase(name: string): string {
+  return name
+    .replace(/[^a-zA-Z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join("");
 }
 
-export function generateTechStackMd(results: CrawlResult[]): string {
-  const ts = results[0]?.techStack;
-  if (!ts) return "# Tech Stack\n\nNo tech stack data available.\n";
-
-  let md = "# Tech Stack\n\n";
-
-  const section = (title: string, data?: { name: string; version?: string; confidence: string; evidence: string[] }) => {
-    if (!data) return "";
-    let s = `## ${title}\n\n**${data.name}**${data.version ? ` v${data.version}` : ""} (${data.confidence} confidence)\n\n`;
-    s += "Evidence:\n";
-    data.evidence.forEach((e) => { s += `- ${e}\n`; });
-    return s + "\n";
-  };
-
-  md += section("Framework", ts.framework);
-  md += section("CSS Framework", ts.cssFramework);
-  md += section("Component Library", ts.componentLibrary);
-  md += section("Build Tool", ts.buildTool);
-
-  if (ts.metaFramework) {
-    md += `## Meta-Framework Features\n\n`;
-    md += ts.metaFramework.features.map((f) => `- ${f}`).join("\n") + "\n\n";
-  }
-
-  if (ts.otherLibraries.length > 0) {
-    md += "## Other Libraries\n\n";
-    ts.otherLibraries.forEach((lib) => {
-      md += `- **${lib.name}** (${lib.category})\n`;
-    });
-  }
-
-  return md;
-}
-
-export function generateStyleGuideMd(results: CrawlResult[]): string {
-  const r = results[0];
-  if (!r) return "# Style Guide\n\nNo data available.\n";
-
-  let md = "# Style Guide\n\n";
-
-  if (r.layout?.sections.length) {
-    const methods = [...new Set(r.layout.sections.map((s) => s.layoutMethod))];
-    md += `## Layout\n\n**Methods:** ${methods.join(", ")}\n\n`;
-    r.layout.sections.forEach((s) => {
-      md += `- **${s.name}** (${s.type}, ${s.layoutMethod}): ${s.description}\n`;
-    });
-    md += "\n";
-  }
-
-  if (r.layout?.responsiveBreakpoints.length) {
-    md += "## Breakpoints\n\n";
-    md += r.layout.responsiveBreakpoints.map((bp) => `- \`${bp}\``).join("\n") + "\n\n";
-  }
-
-  return md;
-}
-
-export function generateComponentFiles(results: CrawlResult[]): { filename: string; content: string }[] {
-  return results.flatMap((r) => r.components.components).map((comp, i) => {
-    const slug = comp.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    return {
-      filename: `${slug}-${i}.html`,
-      content: `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>${comp.name}</title>
-  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-  <style>
-body { font-family: system-ui, sans-serif; padding: 2rem; background: #f5f5f5; }
-  </style>
-</head>
-<body>
-  <!-- ${comp.name} (${comp.category}) -->
-  <!-- ${comp.description} -->
-${comp.attribution?.library ? `  <!-- Library: ${comp.attribution.library} (${comp.attribution.confidence}) -->` : "  <!-- Custom component -->"}
-  ${comp.recreatedHtml || comp.html}
-</body>
-</html>`,
-    };
+function deduplicateNames(names: string[]): string[] {
+  const counts = new Map<string, number>();
+  return names.map((name) => {
+    const count = counts.get(name) || 0;
+    counts.set(name, count + 1);
+    return count === 0 ? name : `${name}${count + 1}`;
   });
 }
 
-export function generateMasterMd(results: CrawlResult[]): string {
-  const url = results[0]?.url ?? "unknown";
-  let md = `# Steal Kit: ${url}\n\n`;
-  md += `> Inspired by ${url}. Design principles extracted for educational study.\n`;
-  md += `> Generated on ${new Date().toISOString()}\n\n---\n\n`;
-  md += generateTechStackMd(results) + "\n---\n\n";
-  md += generateDesignMd(results) + "\n---\n\n";
-  md += generateStyleGuideMd(results) + "\n---\n\n";
+export function generateComponentFiles(results: CrawlResult[]): { filename: string; content: string }[] {
+  const components = results.flatMap((r) => r.components.components);
+  const rawNames = components.map((c) => toPascalCase(c.name) || `Component`);
+  const names = deduplicateNames(rawNames);
 
-  const comps = results.flatMap((r) => r.components.components);
-  if (comps.length) {
-    md += "# Component Patterns\n\n";
-    comps.forEach((c) => {
-      md += `## ${c.name} (${c.category})\n\n`;
-      md += `${c.description}\n\n`;
-      if (c.attribution?.library) md += `**Library:** ${c.attribution.library}\n\n`;
-      if (c.recreatedHtml) {
-        md += "### Recreation (Tailwind)\n\n```html\n" + c.recreatedHtml + "\n```\n\n";
-      }
-      md += "### Original\n\n```html\n" + c.html + "\n```\n\n";
-      if (c.css) md += "```css\n" + c.css + "\n```\n\n";
-    });
+  return components.map((comp, i) => ({
+    filename: `${names[i]}.tsx`,
+    content: comp.reactCode || `// No React component was generated for: ${comp.name}\n// Original HTML:\n// ${comp.html.slice(0, 200)}`,
+  }));
+}
+
+export function generateTailwindConfig(results: CrawlResult[]): string {
+  const design = results[0]?.design;
+  if (!design) return `import type { Config } from "tailwindcss";\n\nconst config: Config = {\n  content: ["./components/**/*.tsx"],\n  theme: { extend: {} },\n  plugins: [],\n};\n\nexport default config;\n`;
+
+  const colors: Record<string, string> = {};
+  for (const c of design.colorPalette) {
+    colors[c.role] = c.hex;
   }
+
+  const fontFamily: Record<string, string[]> = {};
+  for (const t of design.typography) {
+    fontFamily[t.role] = [t.family, t.role === "mono" ? "monospace" : "sans-serif"];
+  }
+
+  const theme = {
+    colors: Object.keys(colors).length > 0 ? colors : undefined,
+    fontFamily: Object.keys(fontFamily).length > 0 ? fontFamily : undefined,
+  };
+
+  const themeEntries = Object.entries(theme).filter(([, v]) => v !== undefined);
+  const themeStr = themeEntries.length > 0
+    ? themeEntries.map(([key, val]) => `      ${key}: ${JSON.stringify(val, null, 8).replace(/\n/g, "\n      ")}`).join(",\n")
+    : "";
+
+  return `import type { Config } from "tailwindcss";
+
+const config: Config = {
+  content: ["./components/**/*.tsx"],
+  theme: {
+    extend: {
+${themeStr}
+    },
+  },
+  plugins: [],
+};
+
+export default config;
+`;
+}
+
+export function generateIndexFile(results: CrawlResult[]): string {
+  const components = results.flatMap((r) => r.components.components);
+  const rawNames = components.map((c) => toPascalCase(c.name) || `Component`);
+  const names = deduplicateNames(rawNames);
+
+  return names.map((name) =>
+    `export { ${name} } from "./components/${name}";`
+  ).join("\n") + "\n";
+}
+
+export function generateReadme(results: CrawlResult[]): string {
+  const url = results[0]?.url ?? "unknown";
+  const design = results[0]?.design;
+  const techStack = results[0]?.techStack;
+  const componentCount = results.flatMap((r) => r.components.components).length;
+
+  let md = `# Steal Kit: ${url}\n\n`;
+  md += `> Design system and components extracted from ${url}\n`;
+  md += `> Generated on ${new Date().toISOString().split("T")[0]}\n\n`;
+
+  md += `## Quick Start\n\n`;
+  md += `1. Copy the \`components/\` folder into your React + Tailwind project\n`;
+  md += `2. Import what you need:\n\n`;
+  md += "```tsx\nimport { ComponentName } from \"./steal-kit\";\n```\n\n";
+  md += `Components use Tailwind arbitrary values for colors, so they work without any config changes.\n`;
+  md += `The included \`tailwind.config.ts\` maps the site's design tokens if you want to use them.\n\n`;
+
+  if (design) {
+    md += `## Design\n\n`;
+    md += `**Style:** ${design.styleClassification.primary}\n`;
+    md += `${design.styleClassification.summary}\n\n`;
+  }
+
+  if (techStack?.framework) {
+    md += `## Original Tech Stack\n\n`;
+    md += `- Framework: ${techStack.framework.name}\n`;
+    if (techStack.cssFramework) md += `- CSS: ${techStack.cssFramework.name}\n`;
+    if (techStack.componentLibrary) md += `- Components: ${techStack.componentLibrary.name}\n`;
+    md += `\n`;
+  }
+
+  md += `## Components (${componentCount})\n\n`;
+  results.flatMap((r) => r.components.components).forEach((c) => {
+    md += `- **${c.name}** (${c.category}): ${c.description}\n`;
+  });
 
   return md;
 }
@@ -143,19 +125,16 @@ export async function exportStealKit(results: CrawlResult[]): Promise<void> {
   }
 
   const kit: StealKitExport = {
-    design: generateDesignMd(results),
-    techStack: generateTechStackMd(results),
-    styleGuide: generateStyleGuideMd(results),
     components: generateComponentFiles(results),
-    masterFile: "",
+    tailwindConfig: generateTailwindConfig(results),
+    indexFile: generateIndexFile(results),
+    readme: generateReadme(results),
   };
-  kit.masterFile = generateMasterMd(results);
 
   const zip = new JSZip();
-  zip.file("steal-kit.md", kit.masterFile);
-  zip.file("design.md", kit.design);
-  zip.file("tech-stack.md", kit.techStack);
-  zip.file("style-guide.md", kit.styleGuide);
+  zip.file("tailwind.config.ts", kit.tailwindConfig);
+  zip.file("index.ts", kit.indexFile);
+  zip.file("README.md", kit.readme);
 
   const folder = zip.folder("components");
   kit.components.forEach((c) => folder?.file(c.filename, c.content));

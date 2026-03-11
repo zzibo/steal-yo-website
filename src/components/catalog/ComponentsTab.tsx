@@ -5,12 +5,12 @@ import { ComponentCard } from "./ComponentCard";
 import { useState } from "react";
 
 export function ComponentsTab() {
-  const { results } = useCrawlStore();
-  const techStack = results[0]?.techStack;
+  const { results, components: streamedComponents, techStack: streamedTechStack } = useCrawlStore();
+  const techStack = streamedTechStack || results[0]?.techStack;
   const extractedStyles = results[0]?.extractedStyles;
   const externalStylesheets = results[0]?.externalStylesheets;
   const fontFamilies: string[] | undefined = undefined;
-  const allComponents = results.flatMap((r) => r.components.components);
+  const allComponents = streamedComponents?.components ?? results.flatMap((r) => r.components.components);
   const [filter, setFilter] = useState("all");
 
   const categories = ["all", ...new Set(allComponents.map((c) => c.category))];

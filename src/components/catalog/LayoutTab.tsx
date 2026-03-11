@@ -86,10 +86,10 @@ function matchComponentsToSections(
 }
 
 export function LayoutTab() {
-  const { results } = useCrawlStore();
-  const layout = results[0]?.layout;
-  const allComponents = results.flatMap((r) => r.components.components);
-  const techStack = results[0]?.techStack;
+  const { results, layout: streamedLayout, components: streamedComponents, techStack: streamedTechStack } = useCrawlStore();
+  const layout = streamedLayout || results[0]?.layout;
+  const allComponents = streamedComponents?.components ?? results.flatMap((r) => r.components.components);
+  const techStack = streamedTechStack || results[0]?.techStack;
   const extractedStyles = results[0]?.extractedStyles;
   const externalStylesheets = results[0]?.externalStylesheets;
   const [expandedSection, setExpandedSection] = useState<number | null>(null);
@@ -116,7 +116,7 @@ export function LayoutTab() {
               <div className="h-3 w-3 rounded-full bg-[#28c840]" />
             </div>
             <div className="ml-4 flex-1 rounded bg-white px-3 py-1 text-xs text-[var(--muted)] border border-[var(--border)]">
-              {results[0]?.url}
+              {results[0]?.url || ""}
             </div>
           </div>
 

@@ -9,7 +9,7 @@ import { withRetry } from "./utils";
 const SYSTEM_PROMPT = `You are a UI component curator and recreator. You receive pre-extracted component candidates from a webpage. Your job is to:
 
 1. Pick the TOP 3-5 most visually interesting and unique components
-2. For each, create a STANDALONE recreation using Tailwind CSS
+2. For each, create BOTH a standalone HTML recreation AND a React TSX component
 
 SELECTION RULES:
 - Pick components that showcase the site's design craft
@@ -26,7 +26,23 @@ RECREATION RULES for recreatedHtml:
 - NO relative URLs, NO external dependencies, NO JavaScript
 - The HTML must render correctly on its own inside a <body> tag with only Tailwind CSS loaded
 - Match the original's border-radius, shadows, padding, gaps, and font sizes as closely as possible
-- If the original uses specific fonts, add them via Tailwind arbitrary values
+
+REACT COMPONENT RULES for reactCode:
+- Write a complete, copy-pasteable React TSX component
+- Start with a TypeScript interface named {ComponentName}Props
+- Use a named export: export function ComponentName({ ...props }: ComponentNameProps)
+- All styling via Tailwind classes using the site's actual hex colors as arbitrary values (e.g. bg-[#6366f1], text-[#1a1a2e])
+- Create typed props for ALL variable content:
+  - Text content → string props with realistic default values from the original
+  - Images → string props defaulting to placehold.co URLs
+  - Click handlers → optional () => void props
+  - Lists/arrays → string[] props with example defaults from the original
+  - Variants → a variant prop with union type (e.g. variant?: "primary" | "secondary") if the component has visual variants, with conditional Tailwind classes
+- Provide default values for ALL optional props via destructuring defaults
+- Icons: use inline JSX SVG elements (NOT imported from a library)
+- Do NOT include any import statements — the component will be added to a project that already has React
+- The component name must be valid PascalCase (e.g. PricingCard, HeroSection, NavBar)
+- The React component and the HTML recreation must render the SAME visual output
 
 Quality over quantity. Only include components worth studying.`;
 
@@ -60,7 +76,16 @@ export async function analyzeComponents(
       model: anthropic("claude-sonnet-4-5-20250929"),
       system: SYSTEM_PROMPT,
       output: Output.object({ schema: ComponentSchema }),
-      prompt: `Pick the 3-5 best components from these ${candidates.length} candidates. For each, provide the original html/css AND a standalone Tailwind recreation in recreatedHtml.\n\n${overview}${techContext}${cssVarsBlock}\n\n## Component Candidates\n\n${candidatesText}`,
+      prompt: `Pick the 3-5 best components from these ${candidates.length} candidates. For each, provide:
+1. The original html/css
+2. A standalone Tailwind HTML recreation in recreatedHtml
+3. A typed React TSX component in reactCode
+
+${overview}${techContext}${cssVarsBlock}
+
+## Component Candidates
+
+${candidatesText}`,
     });
 
     if (!output) throw new Error("No output generated");
