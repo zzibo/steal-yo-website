@@ -55,8 +55,8 @@ function DetailCard({ title, data, index }: {
 }
 
 export function TechStackTab() {
-  const { results } = useCrawlStore();
-  const ts = results[0]?.techStack;
+  const { results, techStack: streamedTechStack } = useCrawlStore();
+  const ts = streamedTechStack || results[0]?.techStack;
 
   if (!ts) return <p className="text-[var(--muted)]">No tech stack data available.</p>;
 

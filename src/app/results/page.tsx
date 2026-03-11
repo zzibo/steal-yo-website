@@ -7,15 +7,15 @@ import { CatalogView } from "@/components/catalog/CatalogView";
 
 export default function ResultsPage() {
   const router = useRouter();
-  const { status, results } = useCrawlStore();
+  const { status } = useCrawlStore();
 
   useEffect(() => {
-    if (status !== "done" || results.length === 0) {
+    if (status === "idle" || status === "crawling") {
       router.replace("/");
     }
-  }, [status, results, router]);
+  }, [status, router]);
 
-  if (status !== "done" || results.length === 0) {
+  if (status === "idle" || status === "crawling") {
     return null;
   }
 

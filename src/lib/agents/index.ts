@@ -6,11 +6,21 @@ import { precomputePageData } from "./page-tools";
 import { buildPageOverview } from "./utils";
 import type { ScrapedPage, CrawlResult } from "../types";
 
-export async function analyzePage(page: ScrapedPage): Promise<CrawlResult> {
+type AnalysisEvent =
+  | { event: "techstack_done"; data: CrawlResult["techStack"] }
+  | { event: "design_done"; data: CrawlResult["design"] }
+  | { event: "layout_done"; data: CrawlResult["layout"] }
+  | { event: "components_done"; data: CrawlResult["components"] };
+
+export async function analyzePage(
+  page: ScrapedPage,
+  onEvent?: (e: AnalysisEvent) => void,
+): Promise<CrawlResult> {
   const toolkit = precomputePageData(page);
   const overview = buildPageOverview(page, toolkit);
 
   const techStack = await analyzeTechStack(page, toolkit, overview);
+  onEvent?.({ event: "techstack_done", data: techStack });
 
   const techContext = {
     framework: techStack.framework?.name,
@@ -19,9 +29,18 @@ export async function analyzePage(page: ScrapedPage): Promise<CrawlResult> {
   };
 
   const [layoutResult, componentsResult, designResult] = await Promise.allSettled([
-    analyzeLayout(page, toolkit, overview, techContext),
-    analyzeComponents(page, toolkit, overview, techStack),
-    analyzeDesign(page, toolkit, overview, techStack),
+    analyzeLayout(page, toolkit, overview, techContext).then((r) => {
+      onEvent?.({ event: "layout_done", data: r });
+      return r;
+    }),
+    analyzeComponents(page, toolkit, overview, techStack).then((r) => {
+      onEvent?.({ event: "components_done", data: r });
+      return r;
+    }),
+    analyzeDesign(page, toolkit, overview, techStack).then((r) => {
+      onEvent?.({ event: "design_done", data: r });
+      return r;
+    }),
   ]);
 
   return {

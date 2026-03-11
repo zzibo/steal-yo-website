@@ -8,19 +8,19 @@ import { motion, AnimatePresence } from "framer-motion";
 
 export default function Home() {
   const router = useRouter();
-  const { url, depth, status, error, setUrl, setDepth, startCrawl, results } = useCrawlStore();
-  const isLoading = status === "loading";
+  const { url, depth, status, error, setUrl, setDepth, startCrawl } = useCrawlStore();
+  const isLoading = status === "crawling";
   const hasNavigated = useRef(false);
 
   useEffect(() => {
-    if (status === "done" && results.length > 0 && !hasNavigated.current) {
+    if ((status === "analyzing" || status === "done") && !hasNavigated.current) {
       hasNavigated.current = true;
       router.push("/results");
     }
     if (status === "idle") {
       hasNavigated.current = false;
     }
-  }, [status, results, router]);
+  }, [status, router]);
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-4">
