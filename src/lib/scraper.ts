@@ -1,5 +1,6 @@
 import FirecrawlApp from "@mendable/firecrawl-js";
 import type { ScrapedPage, CrawlRequest } from "./types";
+import { getCached, setCache, crawlCacheKey } from "./cache";
 
 const firecrawl = new FirecrawlApp({
   apiKey: process.env.FIRECRAWL_API_KEY!,
@@ -40,6 +41,10 @@ export async function scrapePage(url: string): Promise<ScrapedPage> {
 }
 
 export async function crawlPages(request: CrawlRequest): Promise<ScrapedPage[]> {
+  const key = crawlCacheKey(request.url, request.depth);
+  const cached = getCached<ScrapedPage[]>(key);
+  if (cached) return cached.data;
+
   const visited = new Set<string>();
   const pages: ScrapedPage[] = [];
   const queue: { url: string; currentDepth: number }[] = [
@@ -74,5 +79,6 @@ export async function crawlPages(request: CrawlRequest): Promise<ScrapedPage[]> 
     }
   }
 
+  setCache(key, pages);
   return pages;
 }
