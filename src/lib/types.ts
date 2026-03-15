@@ -63,6 +63,7 @@ export interface ExtractedComponent {
   css: string;
   recreatedHtml: string;
   reactCode: string;
+  tsxValid?: boolean;
   variants: string[];
   description: string;
   attribution?: ComponentAttribution;

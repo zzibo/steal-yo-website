@@ -535,7 +535,7 @@ export function extractCandidateComponents(toolkit: PageToolkit): ComponentCandi
 
   // ── Phase 4: Build final candidates (top 20) ──────────────────
   const candidates: ComponentCandidate[] = [];
-  for (const { el, source, score, metrics } of deduplicated.slice(0, 20)) {
+  for (const { el, source, score, metrics } of deduplicated.slice(0, 12)) {
     const $el = $(el);
     const classes = $el.attr("class")?.slice(0, 300) || "";
     const parent = $el.parent();
