@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import type { CrawlResult, TechStackDetection, DesignAnalysis, LayoutAnalysis, ComponentAnalysis } from "./types";
+import type { CrawlResult, TechStackDetection, DesignAnalysis, LayoutAnalysis, ComponentAnalysis, SynthesizedResults } from "./types";
 
 export type AnalysisStatus = "idle" | "crawling" | "analyzing" | "done" | "error";
 
@@ -20,6 +20,7 @@ interface CrawlState {
   components?: ComponentAnalysis;
   extractedStyles?: string;
   externalStylesheets?: string[];
+  synthesis?: SynthesizedResults;
 
   // Assembled results (for export compatibility)
   results: CrawlResult[];
@@ -58,6 +59,7 @@ export const useCrawlStore = create<CrawlState>((set, get) => ({
   components: undefined,
   extractedStyles: undefined,
   externalStylesheets: undefined,
+  synthesis: undefined,
   results: [],
 
   setUrl: (url) => set({ url }),
@@ -77,6 +79,7 @@ export const useCrawlStore = create<CrawlState>((set, get) => ({
       components: undefined,
       extractedStyles: undefined,
       externalStylesheets: undefined,
+      synthesis: undefined,
     });
 
     try {
@@ -134,6 +137,9 @@ export const useCrawlStore = create<CrawlState>((set, get) => ({
               case "components_done":
                 set({ components: parsed });
                 break;
+              case "synthesis_done":
+                set({ synthesis: parsed });
+                break;
               case "done":
                 set({
                   status: "done",
@@ -175,5 +181,6 @@ export const useCrawlStore = create<CrawlState>((set, get) => ({
       components: undefined,
       extractedStyles: undefined,
       externalStylesheets: undefined,
+      synthesis: undefined,
     }),
 }));
