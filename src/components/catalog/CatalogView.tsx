@@ -1,17 +1,80 @@
 "use client";
 
 import { useCrawlStore } from "@/lib/store";
-import { TabBar } from "./TabBar";
 import { ComponentsTab } from "./ComponentsTab";
 import { DesignTab } from "./DesignTab";
 import { LayoutTab } from "./LayoutTab";
 import { TechStackTab } from "./TechStackTab";
+import { DnaStrip } from "./DnaStrip";
+import { SectionNav } from "./SectionNav";
 import { exportStealKit } from "@/lib/export";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 
-function TabSpinner({ label }: { label: string }) {
+/* Skeleton placeholders for sections still loading */
+function SkeletonBlock({ lines = 4, className = "" }: { lines?: number; className?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-20 gap-4">
+    <div className={`space-y-3 border border-[var(--border)] bg-[var(--surface)] p-6 ${className}`}>
+      {Array.from({ length: lines }).map((_, i) => (
+        <div
+          key={i}
+          className="h-4 animate-pulse rounded bg-[var(--border)]"
+          style={{ width: `${70 - i * 10}%`, animationDelay: `${i * 100}ms` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function DesignSkeleton() {
+  return (
+    <div className="space-y-6">
+      <SkeletonBlock lines={3} />
+      <div className="flex gap-3">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="h-16 w-16 animate-pulse rounded border border-[var(--border)] bg-[var(--border)]" style={{ animationDelay: `${i * 80}ms` }} />
+        ))}
+      </div>
+      <SkeletonBlock lines={4} />
+    </div>
+  );
+}
+
+function ComponentsSkeleton() {
+  return (
+    <div className="columns-1 gap-6 md:columns-2 lg:columns-3">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="mb-6 break-inside-avoid">
+          <div className="border border-[var(--border)] bg-[var(--surface)] p-4 space-y-3">
+            <div className="h-32 animate-pulse rounded bg-[var(--border)]" style={{ animationDelay: `${i * 80}ms` }} />
+            <div className="h-4 w-2/3 animate-pulse rounded bg-[var(--border)]" />
+            <div className="h-3 w-1/2 animate-pulse rounded bg-[var(--border)]" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LayoutSkeleton() {
+  return (
+    <div className="mx-auto max-w-3xl space-y-3">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div
+          key={i}
+          className="animate-pulse border border-dashed border-[var(--border)] p-4"
+          style={{ animationDelay: `${i * 100}ms` }}
+        >
+          <div className="mb-2 h-4 w-1/4 rounded bg-[var(--border)]" />
+          <div className="h-12 rounded bg-[var(--border)] opacity-50" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SectionSpinner({ label }: { label: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 gap-4">
       <motion.span
         animate={{ rotate: 360 }}
         transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
@@ -23,7 +86,7 @@ function TabSpinner({ label }: { label: string }) {
 }
 
 export function CatalogView() {
-  const { results, activeTab, reset, url, status, screenshot, pageCount, design, components, layout, techStack } = useCrawlStore();
+  const { results, reset, url, status, screenshot, pageCount, design, components, layout, techStack } = useCrawlStore();
 
   const handleNewCrawl = () => {
     reset();
@@ -32,15 +95,10 @@ export function CatalogView() {
   const isDone = status === "done";
   const displayPageCount = isDone ? results.length : pageCount;
 
-  const tabContent: Record<string, React.ReactNode> = {
-    design: design ? <DesignTab /> : <TabSpinner label="design system" />,
-    components: components ? <ComponentsTab /> : <TabSpinner label="components" />,
-    layout: layout ? <LayoutTab /> : <TabSpinner label="layout" />,
-    techstack: techStack ? <TechStackTab /> : <TabSpinner label="tech stack" />,
-  };
-
   return (
-    <div className="min-h-screen px-6 py-8">
+    <div className="relative min-h-screen px-6 py-8">
+      <SectionNav />
+
       {/* Header */}
       <div className="mb-8 flex items-center justify-between border-b border-dashed border-[var(--border)] pb-4">
         <div>
@@ -82,23 +140,44 @@ export function CatalogView() {
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="mb-8">
-        <TabBar />
+      {/* DNA Strip */}
+      <div id="dna" className="mb-10 scroll-mt-8">
+        <DnaStrip />
       </div>
 
-      {/* Content with page-turn transition */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={activeTab}
-          initial={{ opacity: 0, x: 30 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -30 }}
-          transition={{ duration: 0.25 }}
-        >
-          {tabContent[activeTab]}
-        </motion.div>
-      </AnimatePresence>
+      {/* Design */}
+      <div id="design" className="mb-12 scroll-mt-8">
+        <h2 className="font-serif mb-4 text-xl text-[var(--ink)] border-b border-dashed border-[var(--border)] pb-2">
+          Design System
+        </h2>
+        {design ? <DesignTab /> : <><SectionSpinner label="design system" /><DesignSkeleton /></>}
+      </div>
+
+      {/* Components */}
+      <div id="components" className="mb-12 scroll-mt-8">
+        <h2 className="font-serif mb-4 text-xl text-[var(--ink)] border-b border-dashed border-[var(--border)] pb-2">
+          Components
+        </h2>
+        {components ? <ComponentsTab /> : <><SectionSpinner label="components" /><ComponentsSkeleton /></>}
+      </div>
+
+      {/* Layout */}
+      <div id="layout" className="mb-12 scroll-mt-8">
+        <h2 className="font-serif mb-4 text-xl text-[var(--ink)] border-b border-dashed border-[var(--border)] pb-2">
+          Layout
+        </h2>
+        {layout ? <LayoutTab /> : <><SectionSpinner label="layout" /><LayoutSkeleton /></>}
+      </div>
+
+      {/* Tech Stack */}
+      {(techStack || !isDone) && (
+        <div id="techstack" className="mb-12 scroll-mt-8">
+          <h2 className="font-serif mb-4 text-xl text-[var(--ink)] border-b border-dashed border-[var(--border)] pb-2">
+            Tech Stack
+          </h2>
+          {techStack ? <TechStackTab /> : <SectionSpinner label="tech stack" />}
+        </div>
+      )}
 
       {/* Footer disclaimer */}
       <div className="mt-16 border-t border-dashed border-[var(--border)] pt-4 text-center">
