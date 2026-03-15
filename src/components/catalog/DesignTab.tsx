@@ -2,6 +2,12 @@
 
 import { useCrawlStore } from "@/lib/store";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
+
+function copyToClipboard(text: string, label: string) {
+  navigator.clipboard.writeText(text);
+  toast.success(`Copied ${label}`);
+}
 
 export function DesignTab() {
   const { results, design: streamedDesign } = useCrawlStore();
@@ -45,10 +51,11 @@ export function DesignTab() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
             {design.colorPalette.map((color, i) => (
               <div key={`${color.hex}-${i}`} className="text-center">
-                <div
-                  className="mx-auto mb-2 h-16 w-16 border border-[var(--border)]"
+                <button
+                  onClick={() => copyToClipboard(color.hex, color.hex)}
+                  className="mx-auto mb-2 h-16 w-16 border border-[var(--border)] cursor-pointer hover:scale-110 active:scale-95 transition"
                   style={{ backgroundColor: color.hex }}
-                  title={color.hex}
+                  title={`Click to copy ${color.hex}`}
                 />
                 <p className="font-mono text-xs text-[var(--ink)]">{color.hex}</p>
                 <p className="text-[10px] text-[var(--muted)]">{color.role}</p>
@@ -72,7 +79,13 @@ export function DesignTab() {
             {design.typography.map((font, i) => (
               <div key={`${font.family}-${i}`} className="flex items-start justify-between border-b border-dashed border-[var(--border)] pb-3 last:border-0">
                 <div>
-                  <p className="text-sm font-medium text-[var(--ink)]">{font.family}</p>
+                  <button
+                    onClick={() => copyToClipboard(font.family, font.family)}
+                    className="text-sm font-medium text-[var(--ink)] cursor-pointer hover:text-[var(--accent)] transition text-left"
+                    title={`Click to copy "${font.family}"`}
+                  >
+                    {font.family}
+                  </button>
                   <p className="text-xs text-[var(--muted)]">{font.style}</p>
                   {font.weights.length > 0 && (
                     <div className="mt-1 flex gap-1">
