@@ -8,7 +8,7 @@ import { withRetry } from "./utils";
 
 const SYSTEM_PROMPT = `You are a UI component curator and recreator. You receive pre-extracted component candidates from a webpage. Your job is to:
 
-1. Pick the TOP 3-5 most visually interesting and unique components
+1. Pick the TOP 5-8 most visually interesting and unique components
 2. For each, create BOTH a standalone HTML recreation AND a React TSX component
 
 SELECTION RULES:
@@ -76,7 +76,18 @@ export async function analyzeComponents(
       model: anthropic("claude-sonnet-4-5-20250929"),
       system: SYSTEM_PROMPT,
       output: Output.object({ schema: ComponentSchema }),
-      prompt: `Pick the 3-5 best components from these ${candidates.length} candidates. For each, provide:
+      messages: [{
+        role: "user",
+        content: [
+          ...(page.screenshot ? [{
+            type: "image" as const,
+            image: page.screenshot.startsWith("data:")
+              ? page.screenshot
+              : `data:image/png;base64,${page.screenshot}`,
+          }] : []),
+          {
+            type: "text" as const,
+            text: `Pick the 5-8 best components from these ${candidates.length} candidates. For each, provide:
 1. The original html/css
 2. A standalone Tailwind HTML recreation in recreatedHtml
 3. A typed React TSX component in reactCode
@@ -86,6 +97,9 @@ ${overview}${techContext}${cssVarsBlock}
 ## Component Candidates
 
 ${candidatesText}`,
+          },
+        ],
+      }],
     });
 
     if (!output) throw new Error("No output generated");
