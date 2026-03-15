@@ -35,7 +35,10 @@ export async function POST(req: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
+        console.log(`[api] analyze request: ${url} (depth ${depth})`);
+        const crawlStart = Date.now();
         const pages = await crawlPages({ url, depth });
+        console.log(`[api] crawl finished in ${((Date.now() - crawlStart) / 1000).toFixed(1)}s — ${pages.length} pages`);
         controller.enqueue(encoder.encode(sseEvent("crawl_done", {
           pageCount: pages.length,
           screenshot: pages[0]?.screenshot || null,
