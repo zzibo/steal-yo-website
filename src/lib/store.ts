@@ -23,11 +23,9 @@ interface CrawlState {
 
   // Assembled results (for export compatibility)
   results: CrawlResult[];
-  activeTab: "design" | "components" | "layout" | "techstack";
 
   setUrl: (url: string) => void;
   setDepth: (depth: number) => void;
-  setActiveTab: (tab: CrawlState["activeTab"]) => void;
   startCrawl: () => Promise<void>;
   reset: () => void;
 }
@@ -61,11 +59,9 @@ export const useCrawlStore = create<CrawlState>((set, get) => ({
   extractedStyles: undefined,
   externalStylesheets: undefined,
   results: [],
-  activeTab: "design",
 
   setUrl: (url) => set({ url }),
   setDepth: (depth) => set({ depth }),
-  setActiveTab: (tab) => set({ activeTab: tab }),
 
   startCrawl: async () => {
     const { url, depth } = get();
@@ -179,6 +175,5 @@ export const useCrawlStore = create<CrawlState>((set, get) => ({
       components: undefined,
       extractedStyles: undefined,
       externalStylesheets: undefined,
-      activeTab: "design",
     }),
 }));
