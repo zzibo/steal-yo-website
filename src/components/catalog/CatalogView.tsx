@@ -8,7 +8,6 @@ import { LayoutTab } from "./LayoutTab";
 import { TechStackTab } from "./TechStackTab";
 import { exportStealKit } from "@/lib/export";
 import { motion, AnimatePresence } from "framer-motion";
-import { useRouter } from "next/navigation";
 
 function TabSpinner({ label }: { label: string }) {
   return (
@@ -24,12 +23,10 @@ function TabSpinner({ label }: { label: string }) {
 }
 
 export function CatalogView() {
-  const router = useRouter();
   const { results, activeTab, reset, url, status, screenshot, pageCount, design, components, layout, techStack } = useCrawlStore();
 
   const handleNewCrawl = () => {
     reset();
-    router.push("/");
   };
 
   const isDone = status === "done";
