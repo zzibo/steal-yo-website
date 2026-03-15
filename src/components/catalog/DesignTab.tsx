@@ -3,10 +3,36 @@
 import { useCrawlStore } from "@/lib/store";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import type { DesignAnalysis } from "@/lib/types";
 
 function copyToClipboard(text: string, label: string) {
   navigator.clipboard.writeText(text);
   toast.success(`Copied ${label}`);
+}
+
+function generateCssVariables(design: DesignAnalysis): string {
+  const lines = [":root {"];
+  for (const c of design.colorPalette) lines.push(`  --color-${c.role}: ${c.hex};`);
+  for (const t of design.typography) lines.push(`  --font-${t.role}: "${t.family}", sans-serif;`);
+  lines.push("}");
+  return lines.join("\n");
+}
+
+function generateTailwindTheme(design: DesignAnalysis): string {
+  const colors: Record<string, string> = {};
+  for (const c of design.colorPalette) colors[c.role] = c.hex;
+  const fonts: Record<string, string[]> = {};
+  for (const t of design.typography) fonts[t.role] = [t.family, "sans-serif"];
+  return `theme: {\n  extend: {\n    colors: ${JSON.stringify(colors, null, 6)},\n    fontFamily: ${JSON.stringify(fonts, null, 6)},\n  },\n}`;
+}
+
+function generateTokensJson(design: DesignAnalysis): string {
+  return JSON.stringify({
+    colors: Object.fromEntries(design.colorPalette.map((c) => [c.role, c.hex])),
+    fonts: Object.fromEntries(design.typography.map((t) => [t.role, { family: t.family, weights: t.weights }])),
+    spacing: design.spacing,
+    effects: design.effects,
+  }, null, 2);
 }
 
 export function DesignTab() {
@@ -38,6 +64,28 @@ export function DesignTab() {
           {design.styleClassification.summary}
         </p>
       </motion.div>
+
+      {/* Export Buttons */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => copyToClipboard(generateCssVariables(design), "CSS Variables")}
+          className="border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-medium text-[var(--ink)] transition hover:bg-[var(--accent)] hover:text-white"
+        >
+          Copy as CSS Variables
+        </button>
+        <button
+          onClick={() => copyToClipboard(generateTailwindTheme(design), "Tailwind Config")}
+          className="border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-medium text-[var(--ink)] transition hover:bg-[var(--accent)] hover:text-white"
+        >
+          Copy as Tailwind Config
+        </button>
+        <button
+          onClick={() => copyToClipboard(generateTokensJson(design), "JSON Tokens")}
+          className="border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-medium text-[var(--ink)] transition hover:bg-[var(--accent)] hover:text-white"
+        >
+          Copy as JSON
+        </button>
+      </div>
 
       {/* Color Palette */}
       {design.colorPalette.length > 0 && (
