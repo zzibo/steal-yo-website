@@ -1,5 +1,6 @@
 import { generateText, Output } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
+import { z } from "zod";
 import type { ComponentAnalysis, ScrapedPage, TechStackDetection } from "../types";
 import type { PageToolkit } from "./page-tools";
 import { extractCandidateComponents } from "./page-tools";
@@ -103,6 +104,26 @@ ${candidatesText}`,
     });
 
     if (!output) throw new Error("No output generated");
+
+    // Validate TSX syntax and attempt one-shot repair on failures
+    const { parseSync } = await import("@swc/core");
+    for (const comp of (output as ComponentAnalysis).components) {
+      if (!comp.reactCode) continue;
+      try {
+        parseSync(comp.reactCode, { syntax: "typescript", tsx: true });
+      } catch (parseError) {
+        const errMsg = parseError instanceof Error ? parseError.message : String(parseError);
+        try {
+          const { output: fixed } = await generateText({
+            model: anthropic("claude-sonnet-4-5-20250929"),
+            output: Output.object({ schema: z.object({ reactCode: z.string() }) }),
+            prompt: `Fix this React TSX component. It has a syntax error.\n\nError: ${errMsg}\n\nCode:\n${comp.reactCode}\n\nReturn the fixed code only.`,
+          });
+          if (fixed?.reactCode) comp.reactCode = fixed.reactCode;
+        } catch { /* keep original if repair fails */ }
+      }
+    }
+
     return output as ComponentAnalysis;
   });
 }
