@@ -153,6 +153,12 @@ export interface ComponentAttribution {
   reasoning: string;
 }
 
+export interface SynthesizedResults {
+  globalColors: { hex: string; role: string; name: string; pageCount: number }[];
+  globalComponents: { name: string; category: string; pageUrls: string[] }[];
+  sharedSections: { type: string; name: string; pageCount: number }[];
+}
+
 export interface StealKitExport {
   components: { filename: string; content: string }[];
   stories: { filename: string; content: string }[];

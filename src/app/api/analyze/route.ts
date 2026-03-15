@@ -1,5 +1,6 @@
 import { crawlPages } from "@/lib/scraper";
 import { analyzePage } from "@/lib/agents";
+import { synthesizeResults } from "@/lib/agents/synthesize";
 import type { CrawlRequest } from "@/lib/types";
 
 function sseEvent(event: string, data: unknown): string {
@@ -61,6 +62,16 @@ export async function POST(req: Request) {
             pages.slice(1).map((page) => analyzePage(page))
           );
           allResults.push(...remaining);
+        }
+
+        // Run cross-page synthesis if we have multiple pages
+        if (allResults.length > 1) {
+          try {
+            const synthesis = await synthesizeResults(allResults);
+            controller.enqueue(encoder.encode(sseEvent("synthesis_done", synthesis)));
+          } catch {
+            // Synthesis is optional — don't fail the whole pipeline
+          }
         }
 
         controller.enqueue(encoder.encode(sseEvent("done", { results: allResults })));
