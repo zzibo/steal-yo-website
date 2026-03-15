@@ -155,7 +155,9 @@ export interface ComponentAttribution {
 
 export interface StealKitExport {
   components: { filename: string; content: string }[];
+  stories: { filename: string; content: string }[];
   tailwindConfig: string;
+  packageJson: string;
   indexFile: string;
   readme: string;
 }

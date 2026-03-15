@@ -30,6 +30,65 @@ export function generateComponentFiles(results: CrawlResult[]): { filename: stri
   }));
 }
 
+export function generateStory(componentName: string): { filename: string; content: string } {
+  return {
+    filename: `${componentName}.stories.tsx`,
+    content: `import type { Meta, StoryObj } from "@storybook/react";
+import { ${componentName} } from "../components/${componentName}";
+
+const meta = {
+  title: "StealKit/${componentName}",
+  component: ${componentName},
+  tags: ["autodocs"],
+} satisfies Meta<typeof ${componentName}>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+export const Default: Story = {};
+`,
+  };
+}
+
+export function generateStories(results: CrawlResult[]): { filename: string; content: string }[] {
+  const components = results.flatMap((r) => r.components.components);
+  const rawNames = components.map((c) => toPascalCase(c.name) || `Component`);
+  const names = deduplicateNames(rawNames);
+
+  return names.map((name) => generateStory(name));
+}
+
+export function generatePackageJson(results: CrawlResult[]): string {
+  const url = results[0]?.url ?? "unknown";
+  const slug = url
+    .replace(/^https?:\/\//, "")
+    .replace(/[^a-z0-9]/gi, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase();
+
+  return JSON.stringify(
+    {
+      name: `steal-kit-${slug}`,
+      version: "0.1.0",
+      private: true,
+      description: `Design system and components extracted from ${url}`,
+      dependencies: {
+        react: "^19.0.0",
+        "react-dom": "^19.0.0",
+      },
+      devDependencies: {
+        tailwindcss: "^4.0.0",
+        typescript: "^5.0.0",
+        "@storybook/react": "^8.0.0",
+        "@types/react": "^19.0.0",
+      },
+    },
+    null,
+    2,
+  );
+}
+
 export function generateTailwindConfig(results: CrawlResult[]): string {
   const design = results[0]?.design;
   if (!design) return `import type { Config } from "tailwindcss";\n\nconst config: Config = {\n  content: ["./components/**/*.tsx"],\n  theme: { extend: {} },\n  plugins: [],\n};\n\nexport default config;\n`;
@@ -44,14 +103,32 @@ export function generateTailwindConfig(results: CrawlResult[]): string {
     fontFamily[t.role] = [t.family, t.role === "mono" ? "monospace" : "sans-serif"];
   }
 
-  const theme = {
-    colors: Object.keys(colors).length > 0 ? colors : undefined,
-    fontFamily: Object.keys(fontFamily).length > 0 ? fontFamily : undefined,
-  };
+  // Enriched: extract spacing, borderRadius, shadows from design.effects
+  const borderRadius: Record<string, string> = {};
+  if (design.effects.borderRadius) {
+    borderRadius["DEFAULT"] = design.effects.borderRadius;
+  }
 
-  const themeEntries = Object.entries(theme).filter(([, v]) => v !== undefined);
-  const themeStr = themeEntries.length > 0
-    ? themeEntries.map(([key, val]) => `      ${key}: ${JSON.stringify(val, null, 8).replace(/\n/g, "\n      ")}`).join(",\n")
+  const boxShadow: Record<string, string> = {};
+  if (design.effects.shadows) {
+    boxShadow["DEFAULT"] = design.effects.shadows;
+  }
+
+  const spacing: Record<string, string> = {};
+  if (design.spacing.system) {
+    spacing["DEFAULT"] = design.spacing.system;
+  }
+
+  const extend: Record<string, unknown> = {};
+  if (Object.keys(colors).length > 0) extend.colors = colors;
+  if (Object.keys(fontFamily).length > 0) extend.fontFamily = fontFamily;
+  if (Object.keys(borderRadius).length > 0) extend.borderRadius = borderRadius;
+  if (Object.keys(boxShadow).length > 0) extend.boxShadow = boxShadow;
+  if (Object.keys(spacing).length > 0) extend.spacing = spacing;
+
+  const extendEntries = Object.entries(extend);
+  const extendStr = extendEntries.length > 0
+    ? extendEntries.map(([key, val]) => `      ${key}: ${JSON.stringify(val, null, 8).replace(/\n/g, "\n      ")}`).join(",\n")
     : "";
 
   return `import type { Config } from "tailwindcss";
@@ -60,7 +137,7 @@ const config: Config = {
   content: ["./components/**/*.tsx"],
   theme: {
     extend: {
-${themeStr}
+${extendStr}
     },
   },
   plugins: [],
@@ -126,18 +203,24 @@ export async function exportStealKit(results: CrawlResult[]): Promise<void> {
 
   const kit: StealKitExport = {
     components: generateComponentFiles(results),
+    stories: generateStories(results),
     tailwindConfig: generateTailwindConfig(results),
+    packageJson: generatePackageJson(results),
     indexFile: generateIndexFile(results),
     readme: generateReadme(results),
   };
 
   const zip = new JSZip();
   zip.file("tailwind.config.ts", kit.tailwindConfig);
+  zip.file("package.json", kit.packageJson);
   zip.file("index.ts", kit.indexFile);
   zip.file("README.md", kit.readme);
 
-  const folder = zip.folder("components");
-  kit.components.forEach((c) => folder?.file(c.filename, c.content));
+  const componentsFolder = zip.folder("components");
+  kit.components.forEach((c) => componentsFolder?.file(c.filename, c.content));
+
+  const storiesFolder = zip.folder("stories");
+  kit.stories.forEach((s) => storiesFolder?.file(s.filename, s.content));
 
   const blob = await zip.generateAsync({ type: "blob" });
   const url = URL.createObjectURL(blob);
