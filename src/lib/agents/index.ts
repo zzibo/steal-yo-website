@@ -17,6 +17,15 @@ export async function analyzePage(
   onEvent?: (e: AnalysisEvent) => void,
 ): Promise<CrawlResult> {
   const toolkit = precomputePageData(page);
+
+  if (toolkit.externalStylesheets.length > 0) {
+    const { fetchExternalStyles } = await import("./page-tools");
+    const externalCss = await fetchExternalStyles(toolkit.externalStylesheets, page.url);
+    if (externalCss) {
+      toolkit.extractedStyles = toolkit.extractedStyles + "\n\n" + externalCss;
+    }
+  }
+
   const overview = buildPageOverview(page, toolkit);
 
   const techStack = await analyzeTechStack(page, toolkit, overview);

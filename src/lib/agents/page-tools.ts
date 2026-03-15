@@ -326,6 +326,33 @@ function extractExternalStylesheets($: cheerio.CheerioAPI): string[] {
   return urls;
 }
 
+export async function fetchExternalStyles(
+  stylesheetUrls: string[],
+  baseUrl: string,
+): Promise<string> {
+  const results: string[] = [];
+  let totalSize = 0;
+  const MAX_SIZE = 200_000;
+
+  for (const href of stylesheetUrls.slice(0, 5)) {
+    if (totalSize >= MAX_SIZE) break;
+    try {
+      const resolvedUrl = href.startsWith("http") ? href : new URL(href, baseUrl).toString();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(resolvedUrl, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (res.ok) {
+        const css = await res.text();
+        const remaining = MAX_SIZE - totalSize;
+        results.push(css.slice(0, remaining));
+        totalSize += Math.min(css.length, remaining);
+      }
+    } catch { /* skip failed fetches */ }
+  }
+  return results.join("\n\n");
+}
+
 // ── Component candidate extraction ───────────────────────────────
 
 export interface ComponentCandidate {
