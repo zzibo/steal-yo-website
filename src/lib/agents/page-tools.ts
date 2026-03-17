@@ -477,8 +477,9 @@ export function extractCandidateComponents(toolkit: PageToolkit): ComponentCandi
   for (const sel of SEMANTIC_SELECTORS) collect(sel);
   // Class-name selectors
   for (const sel of CLASS_NAME_SELECTORS) collect(sel);
-  // Structural heuristic: elements with ≥3 children and ≥100 chars text
+  // 2.4: Structural heuristic with early exit cap at 40 raw candidates
   $("body *").each((_, el) => {
+    if (rawCandidates.length >= 40) return false; // early exit
     if (seen.has(el)) return;
     const $el = $(el);
     if ($el.children().length >= 3 && $el.text().trim().length >= 100) {
@@ -533,9 +534,9 @@ export function extractCandidateComponents(toolkit: PageToolkit): ComponentCandi
 
   deduplicated.sort((a, b) => b.score - a.score);
 
-  // ── Phase 4: Build final candidates (top 20) ──────────────────
+  // ── Phase 4: Build final candidates (top 8) ───────────────────
   const candidates: ComponentCandidate[] = [];
-  for (const { el, source, score, metrics } of deduplicated.slice(0, 12)) {
+  for (const { el, source, score, metrics } of deduplicated.slice(0, 8)) {
     const $el = $(el);
     const classes = $el.attr("class")?.slice(0, 300) || "";
     const parent = $el.parent();

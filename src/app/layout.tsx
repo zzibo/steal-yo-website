@@ -16,6 +16,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
+      <head>
+        {/* 3.1: Preload Tailwind CDN so iframe requests hit warm cache */}
+        <link rel="preload" href="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4" as="script" crossOrigin="anonymous" />
+      </head>
       <body className={`${dmSans.variable} ${ibmPlexMono.variable} ${instrumentSerif.variable} ${caveat.variable} min-h-screen antialiased`}>
         {children}
         <Toaster position="bottom-right" richColors />

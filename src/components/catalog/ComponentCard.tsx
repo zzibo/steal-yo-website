@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useId } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect, useRef, useId, useMemo } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import type { ExtractedComponent, TechStackDetection } from "@/lib/types";
 import { toast } from "sonner";
 
@@ -17,13 +17,32 @@ export function ComponentCard({ component, index, techStack, extractedStyles, ex
   const [codeTab, setCodeTab] = useState<"react" | "html" | "original">("react");
   const [iframeHeight, setIframeHeight] = useState(200);
   const [iframeLoaded, setIframeLoaded] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
   const frameId = useId();
 
   const copy = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast.success(`Copied ${label}`);
   };
+
+  // 1.1: IntersectionObserver — only load iframe when card enters viewport
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   // Listen for postMessage-based resize events from the iframe
   useEffect(() => {
@@ -47,8 +66,8 @@ export function ComponentCard({ component, index, techStack, extractedStyles, ex
     ? `<style>${extractedStyles}</style>`
     : "";
 
-  // The recreation is self-contained -- only needs Tailwind
-  const srcDoc = `<!DOCTYPE html>
+  // 3.4: Memoize srcDoc to avoid rebuilding the template string every render
+  const srcDoc = useMemo(() => `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -97,15 +116,19 @@ export function ComponentCard({ component, index, techStack, extractedStyles, ex
   window.parent.postMessage({ type: 'resize', height: Math.ceil(document.body.scrollHeight), frameId: frameId }, '*');
 <\/script>
 </body>
-</html>`;
+</html>`, [component.recreatedHtml, component.html, frameId, stylesheetLinks, extractedStyleBlock]);
+
+  // 1.6: CSS animation delay instead of Framer Motion spring per card
+  const animDelay = `${Math.min(index * 0.04, 0.3)}s`;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ type: "spring", damping: 25, stiffness: 200, delay: Math.min(index * 0.04, 0.3) }}
-      className="relative overflow-hidden border border-[var(--border)] bg-[var(--surface)]"
-      style={{ boxShadow: "2px 3px 12px var(--shadow)" }}
+    <div
+      ref={cardRef}
+      className="relative overflow-hidden border border-[var(--border)] bg-[var(--surface)] animate-[fadeSlideIn_0.4s_ease_both]"
+      style={{
+        boxShadow: "2px 3px 12px var(--shadow)",
+        animationDelay: animDelay,
+      }}
     >
       {/* Library stamp */}
       {component.attribution?.library && (
@@ -119,14 +142,21 @@ export function ComponentCard({ component, index, techStack, extractedStyles, ex
         {!iframeLoaded && (
           <div className="absolute inset-0 z-10 animate-pulse bg-[var(--border)] opacity-30" />
         )}
-        <iframe
-          ref={iframeRef}
-          srcDoc={srcDoc}
-          className="w-full border-0"
-          style={{ height: `${iframeHeight}px`, transition: "height 0.2s ease" }}
-          sandbox="allow-same-origin allow-scripts"
-          title={component.name}
-        />
+        {isVisible ? (
+          <iframe
+            ref={iframeRef}
+            srcDoc={srcDoc}
+            className="w-full border-0"
+            style={{ height: `${iframeHeight}px`, transition: "height 0.2s ease" }}
+            sandbox="allow-same-origin allow-scripts"
+            title={component.name}
+          />
+        ) : (
+          <div
+            className="w-full animate-pulse bg-[var(--border)] opacity-20"
+            style={{ height: `${iframeHeight}px` }}
+          />
+        )}
       </div>
 
       {/* Info */}
@@ -236,6 +266,6 @@ export function ComponentCard({ component, index, techStack, extractedStyles, ex
           )}
         </AnimatePresence>
       </div>
-    </motion.div>
+    </div>
   );
 }
