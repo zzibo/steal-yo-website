@@ -138,20 +138,10 @@ export async function analyzeComponents(
         model: anthropic("claude-sonnet-4-5-20250929"),
         system: GENERATION_PROMPT,
         output: Output.object({ schema: SingleComponentSchema }),
+        // 2.3: Screenshot removed from generation — already used in selection phase
         messages: [{
           role: "user",
-          content: [
-            ...(page.screenshot ? [{
-              type: "image" as const,
-              image: page.screenshot.startsWith("data:")
-                ? page.screenshot
-                : `data:image/png;base64,${page.screenshot}`,
-            }] : []),
-            {
-              type: "text" as const,
-              text: `Recreate this component as Tailwind HTML and a typed React TSX component.\n\n${overview}${techContext}${cssVarsBlock}\n\n## Component\n\n${candidateText}`,
-            },
-          ],
+          content: `Recreate this component as Tailwind HTML and a typed React TSX component.\n\n${overview}${techContext}${cssVarsBlock}\n\n## Component\n\n${candidateText}`,
         }],
       }).then(({ output }) => {
         console.log(`[components] generated component ${idx + 1}/${selectedCandidates.length}: ${output?.name || "?"} in ${((Date.now() - genStart) / 1000).toFixed(1)}s`);

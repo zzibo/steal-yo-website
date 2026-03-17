@@ -1,13 +1,21 @@
 import type { ScrapedPage } from "../types";
 import type { PageToolkit } from "./page-tools";
 
+// 3.2: Per-attempt timeout to prevent hung agents from blocking the pipeline
+const AGENT_TIMEOUT_MS = 60_000;
+
 export async function withRetry<T>(
   fn: () => Promise<T>,
   maxRetries = 2,
 ): Promise<T> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      return await fn();
+      return await Promise.race([
+        fn(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`Agent timed out after ${AGENT_TIMEOUT_MS / 1000}s`)), AGENT_TIMEOUT_MS),
+        ),
+      ]);
     } catch (error) {
       if (attempt === maxRetries) throw error;
       await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
