@@ -150,7 +150,7 @@ export function CatalogView() {
         <h2 className="font-serif mb-4 text-xl text-[var(--ink)] border-b border-dashed border-[var(--border)] pb-2">
           Design System
         </h2>
-        {design ? <DesignTab /> : <><SectionSpinner label="design system" /><DesignSkeleton /></>}
+        {design || isDone ? <DesignTab /> : <><SectionSpinner label="design system" /><DesignSkeleton /></>}
       </div>
 
       {/* Components */}
@@ -158,7 +158,7 @@ export function CatalogView() {
         <h2 className="font-serif mb-4 text-xl text-[var(--ink)] border-b border-dashed border-[var(--border)] pb-2">
           Components
         </h2>
-        {components ? <ComponentsTab /> : <><SectionSpinner label="components" /><ComponentsSkeleton /></>}
+        {components || isDone ? <ComponentsTab /> : <><SectionSpinner label="components" /><ComponentsSkeleton /></>}
       </div>
 
       {/* Layout */}
@@ -166,7 +166,7 @@ export function CatalogView() {
         <h2 className="font-serif mb-4 text-xl text-[var(--ink)] border-b border-dashed border-[var(--border)] pb-2">
           Layout
         </h2>
-        {layout ? <LayoutTab /> : <><SectionSpinner label="layout" /><LayoutSkeleton /></>}
+        {layout || isDone ? <LayoutTab /> : <><SectionSpinner label="layout" /><LayoutSkeleton /></>}
       </div>
 
       {/* Tech Stack */}

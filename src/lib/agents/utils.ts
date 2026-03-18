@@ -17,6 +17,8 @@ export async function withRetry<T>(
         ),
       ]);
     } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.log(`[withRetry] attempt ${attempt + 1}/${maxRetries + 1} failed: ${msg}`);
       if (attempt === maxRetries) throw error;
       await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
     }
