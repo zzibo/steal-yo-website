@@ -86,36 +86,28 @@ export async function analyzeComponents(
       selectedIndices = candidates.map((_, i) => i);
       console.log(`[components] skipping selection (only ${candidates.length} candidates)`);
     } else {
-      const { output: selection } = await generateText({
-        model: anthropic("claude-haiku-4-5-20251001"),
-        system: SELECTION_PROMPT,
-        output: Output.object({ schema: ComponentSelectionSchema }),
-        messages: [{
-          role: "user",
-          content: [
-            ...(page.screenshot ? [{
-              type: "image" as const,
-              image: page.screenshot.startsWith("data:")
-                ? page.screenshot
-                : `data:image/png;base64,${page.screenshot}`,
-            }] : []),
-            {
-              type: "text" as const,
-              text: `Select the best components from these ${candidates.length} candidates:\n\n${candidateSummaries}`,
-            },
-          ],
-        }],
-      });
+      try {
+        const { output: selection } = await generateText({
+          model: anthropic("claude-haiku-4-5-20251001"),
+          system: SELECTION_PROMPT,
+          output: Output.object({ schema: ComponentSelectionSchema }),
+          prompt: `Select the best components from these ${candidates.length} candidates:\n\n${candidateSummaries}`,
+        });
 
-      if (!selection || !selection.selections.length) {
-        throw new Error("No selections returned from Phase 1");
+        if (!selection || !selection.selections.length) {
+          throw new Error("No selections returned from Phase 1");
+        }
+
+        selectedIndices = selection.selections
+          .map(s => s.index)
+          .filter(i => i >= 0 && i < candidates.length);
+
+        console.log(`[components] Phase 1 done in ${((Date.now() - selectionStart) / 1000).toFixed(1)}s — selected indices: [${selectedIndices.join(", ")}]`);
+      } catch (err) {
+        // Fallback: use top 5 candidates by score (already sorted)
+        console.log(`[components] Phase 1 failed, falling back to top 5 by score: ${err instanceof Error ? err.message : String(err)}`);
+        selectedIndices = candidates.slice(0, 5).map((_, i) => i);
       }
-
-      selectedIndices = selection.selections
-        .map(s => s.index)
-        .filter(i => i >= 0 && i < candidates.length);
-
-      console.log(`[components] Phase 1 done in ${((Date.now() - selectionStart) / 1000).toFixed(1)}s — selected indices: [${selectedIndices.join(", ")}]`);
     }
 
     // ── Phase 2: Parallel generation (Sonnet) ───────────────────────
