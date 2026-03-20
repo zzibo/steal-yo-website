@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import type { AnyNode } from "domhandler";
 import { tool } from "ai";
 import { z } from "zod";
 import type { ScrapedPage } from "../types";
@@ -325,6 +326,33 @@ function extractExternalStylesheets($: cheerio.CheerioAPI): string[] {
   return urls;
 }
 
+export async function fetchExternalStyles(
+  stylesheetUrls: string[],
+  baseUrl: string,
+): Promise<string> {
+  const results: string[] = [];
+  let totalSize = 0;
+  const MAX_SIZE = 200_000;
+
+  for (const href of stylesheetUrls.slice(0, 5)) {
+    if (totalSize >= MAX_SIZE) break;
+    try {
+      const resolvedUrl = href.startsWith("http") ? href : new URL(href, baseUrl).toString();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(resolvedUrl, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (res.ok) {
+        const css = await res.text();
+        const remaining = MAX_SIZE - totalSize;
+        results.push(css.slice(0, remaining));
+        totalSize += Math.min(css.length, remaining);
+      }
+    } catch { /* skip failed fetches */ }
+  }
+  return results.join("\n\n");
+}
+
 // ── Component candidate extraction ───────────────────────────────
 
 export interface ComponentCandidate {
@@ -336,80 +364,199 @@ export interface ComponentCandidate {
   parentTag: string;
   parentClasses: string;
   siblingCount: number;
+  score: number;
+  metrics: {
+    subtreeSize: number;
+    contentLength: number;
+    interactiveCount: number;
+    childDiversity: number;
+    depth: number;
+  };
 }
 
-const COMPONENT_SELECTORS = [
+// Class-name selectors kept as ONE signal source among many
+const CLASS_NAME_SELECTORS = [
   '[class*="card"]', '[class*="Card"]',
   '[class*="hero"]', '[class*="Hero"]',
-  '[class*="nav"]', '[class*="Nav"]',
-  '[class*="btn"]', '[class*="Btn"]', '[class*="button"]', '[class*="Button"]',
   '[class*="pricing"]', '[class*="Pricing"]',
   '[class*="feature"]', '[class*="Feature"]',
   '[class*="testimonial"]', '[class*="Testimonial"]',
   '[class*="cta"]', '[class*="CTA"]',
   '[class*="banner"]', '[class*="Banner"]',
   '[class*="modal"]', '[class*="Modal"]',
-  '[class*="footer"]', '[class*="Footer"]',
-  '[class*="header"]', '[class*="Header"]',
-  '[class*="sidebar"]', '[class*="Sidebar"]',
   '[class*="accordion"]', '[class*="Accordion"]',
-  '[class*="tab"]', '[class*="Tab"]',
-  '[class*="dropdown"]', '[class*="Dropdown"]',
   '[class*="carousel"]', '[class*="Carousel"]',
   '[class*="slider"]', '[class*="Slider"]',
-  '[class*="menu"]', '[class*="Menu"]',
   '[class*="tooltip"]', '[class*="Tooltip"]',
   'form',
   'table',
 ];
 
+// Semantic / structural selectors for Phase 1
+const SEMANTIC_SELECTORS = [
+  'section', 'article', 'aside', 'main > *', 'header', 'footer', 'nav',
+  '[role="banner"]', '[role="main"]', '[role="contentinfo"]', '[role="navigation"]',
+];
+
+function getDepth($: cheerio.CheerioAPI, el: AnyNode): number {
+  let depth = 0;
+  let current = $(el).parent();
+  while (current.length && current.prop("tagName")) {
+    depth++;
+    current = current.parent();
+  }
+  return depth;
+}
+
+function getStructuralSignature($: cheerio.CheerioAPI, el: AnyNode): string {
+  const $el = $(el);
+  // Child tag sequence
+  const childTags: string[] = [];
+  $el.children().each((_, child) => {
+    childTags.push($(child).prop("tagName")?.toLowerCase() || "?");
+  });
+  // Class word stems (strip hashes/numbers, keep semantic words)
+  const classes = ($el.attr("class") || "")
+    .split(/\s+/)
+    .map(c => c.replace(/[_-]?[a-f0-9]{5,}/gi, "").replace(/\d+/g, ""))
+    .filter(c => c.length > 2)
+    .sort();
+  return `${childTags.join(",")}|${classes.join(",")}`;
+}
+
+function scoreElement($: cheerio.CheerioAPI, el: AnyNode): { score: number; metrics: ComponentCandidate["metrics"] } {
+  const $el = $(el);
+  const subtreeSize = $el.find("*").length;
+  const contentLength = $el.text().trim().length;
+  const interactiveCount = $el.find("a, button, input, select, svg, img").length;
+
+  const childTagNames = new Set<string>();
+  $el.children().each((_, child) => {
+    const tag = $(child).prop("tagName")?.toLowerCase();
+    if (tag) childTagNames.add(tag);
+  });
+  const childDiversity = childTagNames.size;
+
+  const depth = getDepth($, el);
+
+  // Weighted composite score
+  // Normalize each signal to a rough 0-1 range, then apply weights
+  const subtreeScore = Math.min(subtreeSize / 50, 1) * 0.30;
+  const contentScore = Math.min(contentLength / 500, 1) * 0.25;
+  const interactiveScore = Math.min(interactiveCount / 10, 1) * 0.15;
+  const diversityScore = Math.min(childDiversity / 6, 1) * 0.15;
+  const depthPenalty = (depth > 10 ? Math.min((depth - 10) / 5, 1) : 0) * 0.15;
+
+  const score = subtreeScore + contentScore + interactiveScore + diversityScore - depthPenalty;
+
+  return {
+    score,
+    metrics: { subtreeSize, contentLength, interactiveCount, childDiversity, depth },
+  };
+}
+
 export function extractCandidateComponents(toolkit: PageToolkit): ComponentCandidate[] {
-  const candidates: ComponentCandidate[] = [];
-  const seenHtml = new Set<string>();
+  const $ = toolkit.$;
 
-  for (const selector of COMPONENT_SELECTORS) {
+  // ── Phase 1: Broad collection ──────────────────────────────────
+  const seen = new Set<AnyNode>();
+  const rawCandidates: { el: AnyNode; source: string }[] = [];
+
+  const collect = (selector: string) => {
     try {
-      toolkit.$(selector).each((_, el) => {
-        if (candidates.length >= 20) return;
-        const $el = toolkit.$(el);
-        const outerHtml = toolkit.$.html(el)?.slice(0, 3000) || "";
-
-        // Skip tiny elements (likely just icons or labels)
-        if (outerHtml.length < 50) return;
-
-        // Skip elements that are just wrappers with one text child
-        const children = $el.children();
-        const textLen = $el.text().trim().length;
-        if (children.length === 0 && textLen < 20) return;
-
-        // Deduplicate by first 200 chars of HTML
-        const signature = outerHtml.slice(0, 200);
-        if (seenHtml.has(signature)) return;
-        seenHtml.add(signature);
-
-        const classes = $el.attr("class")?.slice(0, 300) || "";
-        const parent = $el.parent();
-
-        // Find matching CSS rules
-        const matchingCss = findMatchingCssRules(toolkit, classes);
-
-        candidates.push({
-          selector,
-          tag: $el.prop("tagName")?.toLowerCase() || "",
-          classes,
-          outerHtml,
-          matchingCss,
-          parentTag: parent.prop("tagName")?.toLowerCase() || "",
-          parentClasses: parent.attr("class")?.slice(0, 200) || "",
-          siblingCount: parent.children().length,
-        });
+      $(selector).each((_, el) => {
+        if (!seen.has(el)) {
+          seen.add(el);
+          rawCandidates.push({ el, source: selector });
+        }
       });
-    } catch {
-      // invalid selector, skip
+    } catch { /* invalid selector, skip */ }
+  };
+
+  // Semantic HTML + ARIA landmarks
+  for (const sel of SEMANTIC_SELECTORS) collect(sel);
+  // Class-name selectors
+  for (const sel of CLASS_NAME_SELECTORS) collect(sel);
+  // 2.4: Structural heuristic with early exit cap at 40 raw candidates
+  $("body *").each((_, el) => {
+    if (rawCandidates.length >= 40) return false; // early exit
+    if (seen.has(el)) return;
+    const $el = $(el);
+    if ($el.children().length >= 3 && $el.text().trim().length >= 100) {
+      seen.add(el);
+      rawCandidates.push({ el, source: "structural-heuristic" });
+    }
+  });
+
+  // ── Phase 2: Score and rank ────────────────────────────────────
+  const scored: {
+    el: AnyNode;
+    source: string;
+    score: number;
+    metrics: ComponentCandidate["metrics"];
+  }[] = [];
+
+  for (const { el, source } of rawCandidates) {
+    const $el = $(el);
+    const outerHtml = $.html(el) || "";
+
+    // Skip tiny elements
+    if (outerHtml.length < 80) continue;
+    // Skip leaf nodes with barely any text
+    if ($el.children().length === 0 && $el.text().trim().length < 20) continue;
+    // Skip enormous elements (likely the whole page body or main wrapper)
+    if (outerHtml.length > 50_000) continue;
+
+    const { score, metrics } = scoreElement($, el);
+    scored.push({ el, source, score, metrics });
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+
+  // ── Phase 3: Deduplicate by structural signature ───────────────
+  const signatureGroups = new Map<string, typeof scored>();
+  for (const item of scored) {
+    const sig = getStructuralSignature($, item.el);
+    const group = signatureGroups.get(sig);
+    if (group) {
+      group.push(item);
+    } else {
+      signatureGroups.set(sig, [item]);
     }
   }
 
-  return candidates.slice(0, 15);
+  // Keep only highest-scored element from each group
+  const deduplicated: typeof scored = [];
+  for (const group of signatureGroups.values()) {
+    // Already sorted by score descending, so first is best
+    deduplicated.push(group[0]);
+  }
+
+  deduplicated.sort((a, b) => b.score - a.score);
+
+  // ── Phase 4: Build final candidates (top 8) ───────────────────
+  const candidates: ComponentCandidate[] = [];
+  for (const { el, source, score, metrics } of deduplicated.slice(0, 8)) {
+    const $el = $(el);
+    const classes = $el.attr("class")?.slice(0, 300) || "";
+    const parent = $el.parent();
+    const matchingCss = findMatchingCssRules(toolkit, classes);
+
+    candidates.push({
+      selector: source,
+      tag: $el.prop("tagName")?.toLowerCase() || "",
+      classes,
+      outerHtml: $.html(el)?.slice(0, 3000) || "",
+      matchingCss,
+      parentTag: parent.prop("tagName")?.toLowerCase() || "",
+      parentClasses: parent.attr("class")?.slice(0, 200) || "",
+      siblingCount: parent.children().length,
+      score,
+      metrics,
+    });
+  }
+
+  return candidates;
 }
 
 function findMatchingCssRules(toolkit: PageToolkit, classes: string): string {

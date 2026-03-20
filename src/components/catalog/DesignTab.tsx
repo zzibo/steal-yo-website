@@ -2,6 +2,38 @@
 
 import { useCrawlStore } from "@/lib/store";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
+import type { DesignAnalysis } from "@/lib/types";
+
+function copyToClipboard(text: string, label: string) {
+  navigator.clipboard.writeText(text);
+  toast.success(`Copied ${label}`);
+}
+
+function generateCssVariables(design: DesignAnalysis): string {
+  const lines = [":root {"];
+  for (const c of design.colorPalette) lines.push(`  --color-${c.role}: ${c.hex};`);
+  for (const t of design.typography) lines.push(`  --font-${t.role}: "${t.family}", sans-serif;`);
+  lines.push("}");
+  return lines.join("\n");
+}
+
+function generateTailwindTheme(design: DesignAnalysis): string {
+  const colors: Record<string, string> = {};
+  for (const c of design.colorPalette) colors[c.role] = c.hex;
+  const fonts: Record<string, string[]> = {};
+  for (const t of design.typography) fonts[t.role] = [t.family, "sans-serif"];
+  return `theme: {\n  extend: {\n    colors: ${JSON.stringify(colors, null, 6)},\n    fontFamily: ${JSON.stringify(fonts, null, 6)},\n  },\n}`;
+}
+
+function generateTokensJson(design: DesignAnalysis): string {
+  return JSON.stringify({
+    colors: Object.fromEntries(design.colorPalette.map((c) => [c.role, c.hex])),
+    fonts: Object.fromEntries(design.typography.map((t) => [t.role, { family: t.family, weights: t.weights }])),
+    spacing: design.spacing,
+    effects: design.effects,
+  }, null, 2);
+}
 
 export function DesignTab() {
   const { results, design: streamedDesign } = useCrawlStore();
@@ -33,6 +65,28 @@ export function DesignTab() {
         </p>
       </motion.div>
 
+      {/* Export Buttons */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => copyToClipboard(generateCssVariables(design), "CSS Variables")}
+          className="border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-medium text-[var(--ink)] transition hover:bg-[var(--accent)] hover:text-white"
+        >
+          Copy as CSS Variables
+        </button>
+        <button
+          onClick={() => copyToClipboard(generateTailwindTheme(design), "Tailwind Config")}
+          className="border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-medium text-[var(--ink)] transition hover:bg-[var(--accent)] hover:text-white"
+        >
+          Copy as Tailwind Config
+        </button>
+        <button
+          onClick={() => copyToClipboard(generateTokensJson(design), "JSON Tokens")}
+          className="border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-medium text-[var(--ink)] transition hover:bg-[var(--accent)] hover:text-white"
+        >
+          Copy as JSON
+        </button>
+      </div>
+
       {/* Color Palette */}
       {design.colorPalette.length > 0 && (
         <motion.div
@@ -45,10 +99,11 @@ export function DesignTab() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
             {design.colorPalette.map((color, i) => (
               <div key={`${color.hex}-${i}`} className="text-center">
-                <div
-                  className="mx-auto mb-2 h-16 w-16 border border-[var(--border)]"
+                <button
+                  onClick={() => copyToClipboard(color.hex, color.hex)}
+                  className="mx-auto mb-2 h-16 w-16 border border-[var(--border)] cursor-pointer hover:scale-110 active:scale-95 transition"
                   style={{ backgroundColor: color.hex }}
-                  title={color.hex}
+                  title={`Click to copy ${color.hex}`}
                 />
                 <p className="font-mono text-xs text-[var(--ink)]">{color.hex}</p>
                 <p className="text-[10px] text-[var(--muted)]">{color.role}</p>
@@ -72,7 +127,13 @@ export function DesignTab() {
             {design.typography.map((font, i) => (
               <div key={`${font.family}-${i}`} className="flex items-start justify-between border-b border-dashed border-[var(--border)] pb-3 last:border-0">
                 <div>
-                  <p className="text-sm font-medium text-[var(--ink)]">{font.family}</p>
+                  <button
+                    onClick={() => copyToClipboard(font.family, font.family)}
+                    className="text-sm font-medium text-[var(--ink)] cursor-pointer hover:text-[var(--accent)] transition text-left"
+                    title={`Click to copy "${font.family}"`}
+                  >
+                    {font.family}
+                  </button>
                   <p className="text-xs text-[var(--muted)]">{font.style}</p>
                   {font.weights.length > 0 && (
                     <div className="mt-1 flex gap-1">

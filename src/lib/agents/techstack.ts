@@ -96,7 +96,7 @@ export async function analyzeTechStack(
   try {
     const result = await withRetry(async () => {
       const { output } = await generateText({
-        model: anthropic("claude-sonnet-4-5-20250929"),
+        model: anthropic("claude-haiku-4-5-20251001"),
         system: SYSTEM_PROMPT,
         tools: techStackTools(toolkit),
         output: Output.object({ schema: TechStackSchema }),

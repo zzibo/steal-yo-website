@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DM_Sans, IBM_Plex_Mono, Instrument_Serif, Caveat } from "next/font/google";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const dmSans = DM_Sans({ variable: "--font-sans", subsets: ["latin"] });
@@ -15,8 +16,13 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
+      <head>
+        {/* 3.1: Preload Tailwind CDN so iframe requests hit warm cache */}
+        <link rel="preload" href="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4" as="script" crossOrigin="anonymous" />
+      </head>
       <body className={`${dmSans.variable} ${ibmPlexMono.variable} ${instrumentSerif.variable} ${caveat.variable} min-h-screen antialiased`}>
         {children}
+        <Toaster position="bottom-right" richColors />
       </body>
     </html>
   );

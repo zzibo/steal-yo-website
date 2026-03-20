@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import type { CrawlResult, TechStackDetection, DesignAnalysis, LayoutAnalysis, ComponentAnalysis } from "./types";
+import type { CrawlResult, TechStackDetection, DesignAnalysis, LayoutAnalysis, ComponentAnalysis, SynthesizedResults } from "./types";
 
 export type AnalysisStatus = "idle" | "crawling" | "analyzing" | "done" | "error";
 
@@ -20,14 +20,13 @@ interface CrawlState {
   components?: ComponentAnalysis;
   extractedStyles?: string;
   externalStylesheets?: string[];
+  synthesis?: SynthesizedResults;
 
   // Assembled results (for export compatibility)
   results: CrawlResult[];
-  activeTab: "design" | "components" | "layout" | "techstack";
 
   setUrl: (url: string) => void;
   setDepth: (depth: number) => void;
-  setActiveTab: (tab: CrawlState["activeTab"]) => void;
   startCrawl: () => Promise<void>;
   reset: () => void;
 }
@@ -60,12 +59,11 @@ export const useCrawlStore = create<CrawlState>((set, get) => ({
   components: undefined,
   extractedStyles: undefined,
   externalStylesheets: undefined,
+  synthesis: undefined,
   results: [],
-  activeTab: "design",
 
   setUrl: (url) => set({ url }),
   setDepth: (depth) => set({ depth }),
-  setActiveTab: (tab) => set({ activeTab: tab }),
 
   startCrawl: async () => {
     const { url, depth } = get();
@@ -81,6 +79,7 @@ export const useCrawlStore = create<CrawlState>((set, get) => ({
       components: undefined,
       extractedStyles: undefined,
       externalStylesheets: undefined,
+      synthesis: undefined,
     });
 
     try {
@@ -115,45 +114,50 @@ export const useCrawlStore = create<CrawlState>((set, get) => ({
         buffer = buffer.slice(lastDoubleNewline + 2);
 
         const events = parseSSE(complete);
+
+        // 1.5: Batch all updates from this chunk into a single set() call
+        const batch: Partial<CrawlState> = {};
+
         for (const { event, data } of events) {
           try {
             const parsed = JSON.parse(data);
             switch (event) {
               case "crawl_done":
-                set({
-                  status: "analyzing",
-                  screenshot: parsed.screenshot || undefined,
-                  pageCount: parsed.pageCount || 0,
-                });
+                batch.status = "analyzing";
+                batch.screenshot = parsed.screenshot || undefined;
+                batch.pageCount = parsed.pageCount || 0;
                 break;
               case "techstack_done":
-                set({ techStack: parsed });
+                batch.techStack = parsed;
                 break;
               case "design_done":
-                set({ design: parsed });
+                batch.design = parsed;
                 break;
               case "layout_done":
-                set({ layout: parsed });
+                batch.layout = parsed;
                 break;
               case "components_done":
-                set({ components: parsed });
+                batch.components = parsed;
+                break;
+              case "synthesis_done":
+                batch.synthesis = parsed;
                 break;
               case "done":
-                set({
-                  status: "done",
-                  results: parsed.results || [],
-                });
+                batch.status = "done";
+                batch.results = parsed.results || [];
                 break;
               case "error":
-                set({
-                  status: "error",
-                  error: parsed.error || "Unknown error",
-                });
+                batch.status = "error";
+                batch.error = parsed.error || "Unknown error";
                 break;
             }
           } catch {
             // skip malformed event data
           }
+        }
+
+        if (Object.keys(batch).length > 0) {
+          set(batch);
         }
       }
     } catch (err) {
@@ -179,6 +183,6 @@ export const useCrawlStore = create<CrawlState>((set, get) => ({
       components: undefined,
       extractedStyles: undefined,
       externalStylesheets: undefined,
-      activeTab: "design",
+      synthesis: undefined,
     }),
 }));

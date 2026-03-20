@@ -1,5 +1,6 @@
 import { crawlPages } from "@/lib/scraper";
 import { analyzePage } from "@/lib/agents";
+import { synthesizeResults } from "@/lib/agents/synthesize";
 import type { CrawlRequest } from "@/lib/types";
 
 function sseEvent(event: string, data: unknown): string {
@@ -34,7 +35,10 @@ export async function POST(req: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
+        console.log(`[api] analyze request: ${url} (depth ${depth})`);
+        const crawlStart = Date.now();
         const pages = await crawlPages({ url, depth });
+        console.log(`[api] crawl finished in ${((Date.now() - crawlStart) / 1000).toFixed(1)}s — ${pages.length} pages`);
         controller.enqueue(encoder.encode(sseEvent("crawl_done", {
           pageCount: pages.length,
           screenshot: pages[0]?.screenshot || null,
@@ -61,6 +65,16 @@ export async function POST(req: Request) {
             pages.slice(1).map((page) => analyzePage(page))
           );
           allResults.push(...remaining);
+        }
+
+        // Run cross-page synthesis if we have multiple pages
+        if (allResults.length > 1) {
+          try {
+            const synthesis = await synthesizeResults(allResults);
+            controller.enqueue(encoder.encode(sseEvent("synthesis_done", synthesis)));
+          } catch {
+            // Synthesis is optional — don't fail the whole pipeline
+          }
         }
 
         controller.enqueue(encoder.encode(sseEvent("done", { results: allResults })));
