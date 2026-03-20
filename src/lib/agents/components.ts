@@ -1,21 +1,31 @@
 import { generateText, Output } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
-import type { ComponentAnalysis, ScrapedPage, TechStackDetection } from "../types";
-import type { PageToolkit } from "./page-tools";
+import { z } from "zod";
+import type { ComponentAnalysis, ExtractedComponent, ScrapedPage, TechStackDetection } from "../types";
+import type { PageToolkit, ComponentCandidate } from "./page-tools";
 import { extractCandidateComponents } from "./page-tools";
-import { ComponentSchema } from "./schemas";
+import { ComponentSelectionSchema, SingleComponentSchema } from "./schemas";
 import { withRetry } from "./utils";
 
-const SYSTEM_PROMPT = `You are a UI component curator and recreator. You receive pre-extracted component candidates from a webpage. Your job is to:
+// ── Phase 1: Selection prompt (Haiku) ─────────────────────────────
 
-1. Pick the TOP 3-5 most visually interesting and unique components
-2. For each, create BOTH a standalone HTML recreation AND a React TSX component
+const SELECTION_PROMPT = `You are a UI component curator. You receive a list of pre-extracted component candidates from a webpage with their scores and metrics. Your job is to pick the TOP 5 most visually interesting and unique components worth recreating.
 
 SELECTION RULES:
 - Pick components that showcase the site's design craft
-- SKIP generic elements: plain text links, basic divs with no styling, simple paragraphs
-- Identify the component library origin (MUI, shadcn/ui, Chakra, Bootstrap, etc.) with SPECIFIC evidence
-- Note variants if the candidates show multiple similar components with differences
+- SKIP generic elements: plain text links, basic divs with no styling, simple paragraphs, navbars with only text links
+- Prefer components with high subtree richness, interactive elements, and diverse child structures
+- Pick a MIX of component types (don't pick 5 cards — pick a hero, a card, a CTA, etc.)
+- If fewer than 5 candidates are worth recreating, select fewer
+
+Return the 0-based indices of the candidates you've selected.`;
+
+// ── Phase 2: Generation prompt (Sonnet) ───────────────────────────
+
+const GENERATION_PROMPT = `You are a UI component recreator. You receive ONE component from a webpage. Your job is to:
+1. Identify what kind of component it is
+2. Create a standalone HTML recreation using Tailwind CSS
+3. Create a typed React TSX component
 
 RECREATION RULES for recreatedHtml:
 - Write clean, self-contained HTML that uses ONLY Tailwind CSS classes for styling
@@ -44,7 +54,7 @@ REACT COMPONENT RULES for reactCode:
 - The component name must be valid PascalCase (e.g. PricingCard, HeroSection, NavBar)
 - The React component and the HTML recreation must render the SAME visual output
 
-Quality over quantity. Only include components worth studying.`;
+Quality over quantity.`;
 
 export async function analyzeComponents(
   page: ScrapedPage,
@@ -54,41 +64,125 @@ export async function analyzeComponents(
 ): Promise<ComponentAnalysis> {
   return withRetry(async () => {
     const candidates = extractCandidateComponents(toolkit);
+    console.log(`[components] ${candidates.length} candidates extracted, screenshot: ${!!page.screenshot}`);
 
     if (candidates.length === 0) {
+      console.log(`[components] no candidates found, skipping`);
       return { components: [] };
     }
+
+    // ── Phase 1: Selection (Haiku) ──────────────────────────────────
+    console.log(`[components] Phase 1: selecting top candidates with Haiku...`);
+    const selectionStart = Date.now();
+
+    const candidateSummaries = candidates.map((c, i) =>
+      `${i}. [${c.tag}] score=${c.score.toFixed(2)} | ${c.metrics.subtreeSize} descendants, ${c.metrics.contentLength} chars, ${c.metrics.interactiveCount} interactive, ${c.metrics.childDiversity} child types, depth ${c.metrics.depth} | source: ${c.selector} | classes: ${c.classes.slice(0, 100)} | html preview: ${c.outerHtml.slice(0, 200)}...`
+    ).join("\n");
+
+    let selectedIndices: number[];
+
+    if (candidates.length <= 5) {
+      // Skip selection phase if we have 5 or fewer candidates
+      selectedIndices = candidates.map((_, i) => i);
+      console.log(`[components] skipping selection (only ${candidates.length} candidates)`);
+    } else {
+      try {
+        const { output: selection } = await generateText({
+          model: anthropic("claude-haiku-4-5-20251001"),
+          system: SELECTION_PROMPT,
+          output: Output.object({ schema: ComponentSelectionSchema }),
+          prompt: `Select the best components from these ${candidates.length} candidates:\n\n${candidateSummaries}`,
+        });
+
+        if (!selection || !selection.selections.length) {
+          throw new Error("No selections returned from Phase 1");
+        }
+
+        selectedIndices = selection.selections
+          .map(s => s.index)
+          .filter(i => i >= 0 && i < candidates.length);
+
+        console.log(`[components] Phase 1 done in ${((Date.now() - selectionStart) / 1000).toFixed(1)}s — selected indices: [${selectedIndices.join(", ")}]`);
+      } catch (err) {
+        // Fallback: use top 5 candidates by score (already sorted)
+        console.log(`[components] Phase 1 failed, falling back to top 5 by score: ${err instanceof Error ? err.message : String(err)}`);
+        selectedIndices = candidates.slice(0, 5).map((_, i) => i);
+      }
+    }
+
+    // ── Phase 2: Parallel generation (Sonnet) ───────────────────────
+    const selectedCandidates = selectedIndices.map(i => candidates[i]);
+    console.log(`[components] Phase 2: generating ${selectedCandidates.length} components in parallel with Sonnet...`);
+    const genStart = Date.now();
 
     let techContext = "";
     if (techStack) {
       techContext = `\n\nDetected Tech Stack:\nFramework: ${techStack.framework?.name || "unknown"}\nCSS: ${techStack.cssFramework?.name || "unknown"}\nComponent Library: ${techStack.componentLibrary?.name || "unknown"}`;
     }
 
-    // Include CSS variables for color/spacing reference
     const cssVars = toolkit.cssVariables.slice(0, 30).map((v) => `${v.name}: ${v.value}`).join("\n");
     const cssVarsBlock = cssVars ? `\n\n## CSS Variables (Design Tokens)\n${cssVars}` : "";
 
-    const candidatesText = candidates.map((c, i) =>
-      `### Candidate ${i + 1} (matched: ${c.selector})\nTag: ${c.tag} | Classes: ${c.classes}\nParent: <${c.parentTag} class="${c.parentClasses}"> (${c.siblingCount} children)\n\nHTML:\n${c.outerHtml}\n\nCSS Rules:\n${c.matchingCss || "(no matching CSS found in <style> tags)"}`
-    ).join("\n\n---\n\n");
+    const generationPromises = selectedCandidates.map((candidate, idx) => {
+      const candidateText = `Tag: ${candidate.tag} | Classes: ${candidate.classes}\nMetrics: ${candidate.metrics.subtreeSize} descendants, ${candidate.metrics.contentLength} chars, ${candidate.metrics.interactiveCount} interactive elements, ${candidate.metrics.childDiversity} unique child tags, depth ${candidate.metrics.depth}\nParent: <${candidate.parentTag} class="${candidate.parentClasses}"> (${candidate.siblingCount} children)\n\nHTML:\n${candidate.outerHtml}\n\nCSS Rules:\n${candidate.matchingCss || "(no matching CSS found in <style> tags)"}`;
 
-    const { output } = await generateText({
-      model: anthropic("claude-sonnet-4-5-20250929"),
-      system: SYSTEM_PROMPT,
-      output: Output.object({ schema: ComponentSchema }),
-      prompt: `Pick the 3-5 best components from these ${candidates.length} candidates. For each, provide:
-1. The original html/css
-2. A standalone Tailwind HTML recreation in recreatedHtml
-3. A typed React TSX component in reactCode
-
-${overview}${techContext}${cssVarsBlock}
-
-## Component Candidates
-
-${candidatesText}`,
+      return generateText({
+        model: anthropic("claude-sonnet-4-5-20250929"),
+        system: GENERATION_PROMPT,
+        output: Output.object({ schema: SingleComponentSchema }),
+        // 2.3: Screenshot removed from generation — already used in selection phase
+        messages: [{
+          role: "user",
+          content: `Recreate this component as Tailwind HTML and a typed React TSX component.\n\n${overview}${techContext}${cssVarsBlock}\n\n## Component\n\n${candidateText}`,
+        }],
+      }).then(({ output }) => {
+        console.log(`[components] generated component ${idx + 1}/${selectedCandidates.length}: ${output?.name || "?"} in ${((Date.now() - genStart) / 1000).toFixed(1)}s`);
+        return output;
+      }).catch(err => {
+        console.log(`[components] failed to generate component ${idx + 1}: ${err instanceof Error ? err.message : String(err)}`);
+        return null;
+      });
     });
 
-    if (!output) throw new Error("No output generated");
-    return output as ComponentAnalysis;
+    const results = await Promise.allSettled(generationPromises);
+    console.log(`[components] Phase 2 done in ${((Date.now() - genStart) / 1000).toFixed(1)}s`);
+
+    // ── Post-processing: validate TSX ─────────────────────────────
+    const components: ExtractedComponent[] = [];
+    const { parseSync } = await import("@swc/core");
+
+    for (const result of results) {
+      if (result.status !== "fulfilled" || !result.value) continue;
+      const comp = result.value;
+
+      let tsxValid = true;
+      if (comp.reactCode) {
+        try {
+          parseSync(comp.reactCode, { syntax: "typescript", tsx: true });
+        } catch (parseError) {
+          const errMsg = parseError instanceof Error ? parseError.message : String(parseError);
+          console.log(`[components] TSX invalid in ${comp.name}: ${errMsg.slice(0, 100)}`);
+          tsxValid = false;
+        }
+      }
+
+      components.push({
+        name: comp.name,
+        category: comp.category,
+        html: comp.html,
+        css: comp.css,
+        recreatedHtml: comp.recreatedHtml,
+        reactCode: comp.reactCode,
+        tsxValid,
+        variants: comp.variants,
+        description: comp.description,
+        attribution: comp.attribution ?? undefined,
+      });
+    }
+
+    const totalTime = ((Date.now() - selectionStart) / 1000).toFixed(1);
+    console.log(`[components] done — ${components.length} components (${components.filter(c => c.tsxValid).length} valid TSX) in ${totalTime}s total`);
+
+    return { components };
   });
 }

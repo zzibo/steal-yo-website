@@ -3,7 +3,7 @@
 import { useCrawlStore } from "@/lib/store";
 import { ComponentCard } from "./ComponentCard";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { LayoutSection, ExtractedComponent } from "@/lib/types";
 
 const sectionColors: Record<string, string> = {
@@ -94,9 +94,13 @@ export function LayoutTab() {
   const externalStylesheets = results[0]?.externalStylesheets;
   const [expandedSection, setExpandedSection] = useState<number | null>(null);
 
-  if (!layout) return <p className="text-[var(--muted)]">No layout data extracted.</p>;
+  // 1.3: Memoize the O(n*m) matching computation
+  const sectionComponents = useMemo(
+    () => layout ? matchComponentsToSections(layout.sections, allComponents) : new Map<number, ExtractedComponent[]>(),
+    [layout?.sections, allComponents],
+  );
 
-  const sectionComponents = matchComponentsToSections(layout.sections, allComponents);
+  if (!layout) return <p className="text-[var(--muted)]">No layout data extracted.</p>;
 
   return (
     <div className="space-y-10">
@@ -155,6 +159,7 @@ export function LayoutTab() {
                       <span className="text-sm font-medium text-[var(--ink)]">{section.name}</span>
                     </div>
                     <span className="font-mono text-[10px] text-[var(--muted)]">
+                      {matched.length > 0 && `${matched.length} component${matched.length > 1 ? "s" : ""} · `}
                       {section.layoutMethod}
                     </span>
                   </div>
@@ -164,8 +169,8 @@ export function LayoutTab() {
                     {/* Description */}
                     <p className="font-hand mb-3 text-xs text-[var(--muted)]">{section.description}</p>
 
-                    {/* Matched components rendered in context */}
-                    {matched.length > 0 && (
+                    {/* 1.2: Only render ComponentCards when section is expanded */}
+                    {matched.length > 0 && isExpanded && (
                       <div className={
                         section.layoutMethod === "grid"
                           ? "grid grid-cols-1 gap-4 sm:grid-cols-2"
@@ -187,6 +192,13 @@ export function LayoutTab() {
                           </div>
                         ))}
                       </div>
+                    )}
+
+                    {/* Collapsed summary when section has components but isn't expanded */}
+                    {matched.length > 0 && !isExpanded && (
+                      <p className="text-xs text-[var(--muted)] italic">
+                        {matched.length} component{matched.length > 1 ? "s" : ""} — click to expand
+                      </p>
                     )}
 
                     {/* If no components, show wireframe placeholder */}

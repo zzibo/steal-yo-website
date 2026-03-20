@@ -2,7 +2,7 @@
 
 import { useCrawlStore } from "@/lib/store";
 import { ComponentCard } from "./ComponentCard";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 export function ComponentsTab() {
   const { results, components: streamedComponents, techStack: streamedTechStack } = useCrawlStore();
@@ -13,8 +13,15 @@ export function ComponentsTab() {
   const allComponents = streamedComponents?.components ?? results.flatMap((r) => r.components.components);
   const [filter, setFilter] = useState("all");
 
-  const categories = ["all", ...new Set(allComponents.map((c) => c.category))];
-  const filtered = filter === "all" ? allComponents : allComponents.filter((c) => c.category === filter);
+  // 1.4: Memoize categories and filtered arrays
+  const categories = useMemo(
+    () => ["all", ...new Set(allComponents.map((c) => c.category))],
+    [allComponents],
+  );
+  const filtered = useMemo(
+    () => filter === "all" ? allComponents : allComponents.filter((c) => c.category === filter),
+    [allComponents, filter],
+  );
 
   if (allComponents.length === 0) {
     return (

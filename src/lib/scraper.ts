@@ -1,5 +1,6 @@
 import FirecrawlApp from "@mendable/firecrawl-js";
 import type { ScrapedPage, CrawlRequest } from "./types";
+import { getCached, setCache, crawlCacheKey } from "./cache";
 
 const firecrawl = new FirecrawlApp({
   apiKey: process.env.FIRECRAWL_API_KEY!,
@@ -40,6 +41,14 @@ export async function scrapePage(url: string): Promise<ScrapedPage> {
 }
 
 export async function crawlPages(request: CrawlRequest): Promise<ScrapedPage[]> {
+  const key = crawlCacheKey(request.url, request.depth);
+  const cached = getCached<ScrapedPage[]>(key);
+  if (cached) {
+    console.log(`[crawl] cache hit for ${request.url} (depth ${request.depth})`);
+    return cached.data;
+  }
+
+  console.log(`[crawl] starting crawl: ${request.url} (depth ${request.depth})`);
   const visited = new Set<string>();
   const pages: ScrapedPage[] = [];
   const queue: { url: string; currentDepth: number }[] = [
@@ -51,7 +60,10 @@ export async function crawlPages(request: CrawlRequest): Promise<ScrapedPage[]> 
     if (visited.has(item.url)) continue;
     visited.add(item.url);
 
+    console.log(`[crawl] scraping page ${pages.length + 1}: ${item.url}`);
+    const start = Date.now();
     const page = await scrapePage(item.url);
+    console.log(`[crawl] scraped in ${((Date.now() - start) / 1000).toFixed(1)}s — ${page.rawHtml.length} chars HTML, screenshot: ${!!page.screenshot}`);
     pages.push(page);
 
     if (item.currentDepth < request.depth) {
@@ -74,5 +86,6 @@ export async function crawlPages(request: CrawlRequest): Promise<ScrapedPage[]> 
     }
   }
 
+  setCache(key, pages);
   return pages;
 }

@@ -45,6 +45,31 @@ export const LayoutSchema = z.object({
   })),
 });
 
+// Phase 1: Selection schema — Haiku picks which candidates to generate
+export const ComponentSelectionSchema = z.object({
+  selections: z.array(z.object({
+    index: z.number().describe("0-based index of the candidate to select"),
+    reason: z.string().describe("Brief reason why this candidate is worth recreating"),
+  })),
+});
+
+// Phase 2: Single component generation schema
+export const SingleComponentSchema = z.object({
+  name: z.string(),
+  category: z.enum(["button", "card", "input", "modal", "navbar", "hero", "footer", "form", "badge", "other"]),
+  html: z.string().describe("The original HTML from the page (for reference)"),
+  css: z.string().describe("The original CSS from the page (for reference)"),
+  recreatedHtml: z.string().describe("Standalone HTML recreation using Tailwind CSS classes that visually matches the original. Must be self-contained — no external images, no relative URLs. Use placeholder images via https://placehold.co/ if needed. Use inline SVGs for icons."),
+  reactCode: z.string().describe("A complete, self-contained React TSX component. Include a TypeScript interface named {ComponentName}Props with typed props for all variable content (text as string, images as string URLs, handlers as () => void, lists as string[]). Use a named export function (not default). Style with Tailwind classes using the site's actual hex colors as arbitrary values (e.g. bg-[#6366f1]). Provide default values for all optional props via destructuring. Icons as inline JSX SVG elements. Images as placehold.co URLs in defaults. No imports needed — component will be used in a React + Tailwind project."),
+  variants: z.array(z.string()),
+  description: z.string(),
+  attribution: z.object({
+    library: z.string().nullable(),
+    confidence: z.enum(["high", "medium", "low"]),
+    reasoning: z.string(),
+  }).optional(),
+});
+
 // Matches ComponentAnalysis in types.ts
 export const ComponentSchema = z.object({
   components: z.array(z.object({
@@ -54,6 +79,7 @@ export const ComponentSchema = z.object({
     css: z.string().describe("The original CSS from the page (for reference)"),
     recreatedHtml: z.string().describe("Standalone HTML recreation using Tailwind CSS classes that visually matches the original. Must be self-contained — no external images, no relative URLs. Use placeholder images via https://placehold.co/ if needed. Use inline SVGs for icons."),
     reactCode: z.string().describe("A complete, self-contained React TSX component. Include a TypeScript interface named {ComponentName}Props with typed props for all variable content (text as string, images as string URLs, handlers as () => void, lists as string[]). Use a named export function (not default). Style with Tailwind classes using the site's actual hex colors as arbitrary values (e.g. bg-[#6366f1]). Provide default values for all optional props via destructuring. Icons as inline JSX SVG elements. Images as placehold.co URLs in defaults. No imports needed — component will be used in a React + Tailwind project."),
+    tsxValid: z.boolean().optional(),
     variants: z.array(z.string()),
     description: z.string(),
     attribution: z.object({

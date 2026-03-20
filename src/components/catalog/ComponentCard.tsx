@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect, useRef, useId, useMemo } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import type { ExtractedComponent, TechStackDetection } from "@/lib/types";
+import { toast } from "sonner";
 
 export function ComponentCard({ component, index, techStack, extractedStyles, externalStylesheets, fontFamilies }: {
   component: ExtractedComponent;
@@ -14,54 +15,120 @@ export function ComponentCard({ component, index, techStack, extractedStyles, ex
 }) {
   const [showCode, setShowCode] = useState(false);
   const [codeTab, setCodeTab] = useState<"react" | "html" | "original">("react");
-  const [copied, setCopied] = useState<string | null>(null);
-  const [iframeHeight, setIframeHeight] = useState(120);
+  const [iframeHeight, setIframeHeight] = useState(200);
+  const [iframeLoaded, setIframeLoaded] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const frameId = useId();
 
   const copy = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
-    setCopied(label);
-    setTimeout(() => setCopied(null), 1500);
+    toast.success(`Copied ${label}`);
   };
 
-  const handleIframeLoad = useCallback(() => {
-    const iframe = iframeRef.current;
-    if (!iframe) return;
-    try {
-      const doc = iframe.contentDocument;
-      if (doc?.body) {
-        const height = doc.body.scrollHeight;
-        setIframeHeight(Math.min(Math.max(height, 60), 400));
-      }
-    } catch {
-      // sandbox may block access
-    }
+  // 1.1: IntersectionObserver — only load iframe when card enters viewport
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
   }, []);
 
-  // The recreation is self-contained — only needs Tailwind
-  const srcDoc = `<!DOCTYPE html>
+  // Listen for postMessage-based resize events from the iframe
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === "resize" && e.data?.frameId === frameId) {
+        const h = Math.min(Math.max(e.data.height, 80), 500);
+        setIframeHeight(h);
+        setIframeLoaded(true);
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [frameId]);
+
+  // Build external stylesheet links for the original HTML view
+  const stylesheetLinks = (externalStylesheets ?? [])
+    .map((href) => `<link rel="stylesheet" href="${href}">`)
+    .join("\n  ");
+
+  const extractedStyleBlock = extractedStyles
+    ? `<style>${extractedStyles}</style>`
+    : "";
+
+  // 3.4: Memoize srcDoc to avoid rebuilding the template string every render
+  const srcDoc = useMemo(() => `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
-  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"><\/script>
+  ${stylesheetLinks}
+  ${extractedStyleBlock}
   <style>
     body {
       margin: 0;
       padding: 16px;
       font-family: system-ui, sans-serif;
     }
+    /* Shimmer skeleton while loading */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      z-index: 9999;
+      transition: opacity 0.3s;
+    }
+    body.loaded::before {
+      opacity: 0;
+      pointer-events: none;
+    }
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
   </style>
 </head>
-<body>${component.recreatedHtml || component.html}</body>
-</html>`;
+<body>${component.recreatedHtml || component.html}
+<script>
+  document.body.classList.add('loaded');
+  var frameId = ${JSON.stringify(frameId)};
+  var ro = new ResizeObserver(function(entries) {
+    for (var entry of entries) {
+      var h = Math.ceil(entry.target.scrollHeight);
+      window.parent.postMessage({ type: 'resize', height: h, frameId: frameId }, '*');
+    }
+  });
+  ro.observe(document.body);
+  // Initial size report
+  window.parent.postMessage({ type: 'resize', height: Math.ceil(document.body.scrollHeight), frameId: frameId }, '*');
+<\/script>
+</body>
+</html>`, [component.recreatedHtml, component.html, frameId, stylesheetLinks, extractedStyleBlock]);
+
+  // 1.6: CSS animation delay instead of Framer Motion spring per card
+  const animDelay = `${Math.min(index * 0.04, 0.3)}s`;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ type: "spring", damping: 25, stiffness: 200, delay: Math.min(index * 0.04, 0.3) }}
-      className="relative overflow-hidden border border-[var(--border)] bg-[var(--surface)]"
-      style={{ boxShadow: "2px 3px 12px var(--shadow)" }}
+    <div
+      ref={cardRef}
+      className="relative overflow-hidden border border-[var(--border)] bg-[var(--surface)] animate-[fadeSlideIn_0.4s_ease_both]"
+      style={{
+        boxShadow: "2px 3px 12px var(--shadow)",
+        animationDelay: animDelay,
+      }}
     >
       {/* Library stamp */}
       {component.attribution?.library && (
@@ -71,16 +138,25 @@ export function ComponentCard({ component, index, techStack, extractedStyles, ex
       )}
 
       {/* Preview */}
-      <div className="border-b border-dashed border-[var(--border)] bg-white">
-        <iframe
-          ref={iframeRef}
-          srcDoc={srcDoc}
-          className="w-full border-0"
-          style={{ height: `${iframeHeight}px` }}
-          sandbox="allow-same-origin allow-scripts"
-          title={component.name}
-          onLoad={handleIframeLoad}
-        />
+      <div className="relative border-b border-dashed border-[var(--border)] bg-white">
+        {!iframeLoaded && (
+          <div className="absolute inset-0 z-10 animate-pulse bg-[var(--border)] opacity-30" />
+        )}
+        {isVisible ? (
+          <iframe
+            ref={iframeRef}
+            srcDoc={srcDoc}
+            className="w-full border-0"
+            style={{ height: `${iframeHeight}px`, transition: "height 0.2s ease" }}
+            sandbox="allow-same-origin allow-scripts"
+            title={component.name}
+          />
+        ) : (
+          <div
+            className="w-full animate-pulse bg-[var(--border)] opacity-20"
+            style={{ height: `${iframeHeight}px` }}
+          />
+        )}
       </div>
 
       {/* Info */}
@@ -112,9 +188,9 @@ export function ComponentCard({ component, index, techStack, extractedStyles, ex
             className="bg-[var(--background)] px-3 py-1.5 text-xs text-[var(--muted)] transition hover:text-[var(--ink)]">
             {showCode ? "Hide Code" : "View Code"}
           </button>
-          <button onClick={() => copy(component.reactCode || component.recreatedHtml || component.html, "code")}
+          <button onClick={() => copy(component.reactCode || component.recreatedHtml || component.html, "React code")}
             className="bg-[var(--background)] px-3 py-1.5 text-xs text-[var(--muted)] transition hover:text-[var(--ink)]">
-            {copied === "code" ? "Copied!" : "Copy React"}
+            Copy React
           </button>
         </div>
 
@@ -190,6 +266,6 @@ export function ComponentCard({ component, index, techStack, extractedStyles, ex
           )}
         </AnimatePresence>
       </div>
-    </motion.div>
+    </div>
   );
 }

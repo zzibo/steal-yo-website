@@ -57,7 +57,7 @@ export async function analyzeLayout(
     const sectionHierarchy = JSON.stringify(buildTree(toolkit.$("body")), null, 2);
 
     const { output } = await generateText({
-      model: anthropic("claude-sonnet-4-5-20250929"),
+      model: anthropic("claude-haiku-4-5-20251001"),
       system: SYSTEM_PROMPT,
       output: Output.object({ schema: LayoutSchema }),
       prompt: `Analyze the layout of this page using the pre-extracted data below.\n\n${overview}${techInfo}\n\n## Landmark Sections\n${landmarks}\n\n## Heading Hierarchy\n${headings}\n\n## Section Hierarchy (parent-child nesting)\n${sectionHierarchy}\n\n## Media Queries / Breakpoints\n${mediaQueries}`,
